@@ -1,0 +1,461 @@
+---
+title: "Gavrila_TSH_analysis"
+author: "Henrique"
+date: "2024-02-06"
+output: html_document
+---
+
+```{r setup}
+
+# BiocManager::install("DESeq2")
+# Load necessary libraries
+library(DESeq2)
+library(readxl)
+library(tidyverse)
+library(ggpubr)
+
+```
+
+#Running updated DESEq2
+```{r}
+# Running DESeq2
+cts <- readRDS(file = "./tx2gene_counts.rds")
+cts <- round(cts)
+str(cts)
+
+# Create a sample information table (coldata)
+samples <- colnames(cts)
+condition <- ifelse(grepl("^Deep", samples), "Deep", "SC")  # Assign condition based on sample names
+coldata <- data.frame(
+  row.names = samples,
+  condition = factor(condition, levels = c("SC", "Deep")) # Specifying factor levels
+)
+
+# Verify coldata matches cts
+if(!all(rownames(coldata) == colnames(cts))) {
+  stop("Row names of coldata must match column names of counts matrix")
+}
+
+# Create DESeqDataSet
+dds <- DESeqDataSetFromMatrix(
+  countData = cts,
+  colData = coldata,
+  design = ~ condition
+)
+```
+
+
+```{r}
+# Run the DESeq pipeline
+dds <- DESeq(dds)
+
+# Save the DESeq2 object to an RDS file for future use
+saveRDS(dds, file = "DESeq2_object.rds")
+
+# Get results
+res <- results(dds)
+
+# Optional: Order results by adjusted p-value
+resOrdered <- res[order(res$padj),]
+
+# Summary of results
+summary(res)
+
+# Export results as a data frame
+resDF <- as.data.frame(resOrdered)
+resDF <- resDF %>% mutate(Ensembl_gene = rownames(resDF))
+
+# Save results to a CSV file
+write.csv(resDF, file = "DESeq2_results.csv")
+
+```
+
+```{r}
+cpm_matrix <- read.csv("./logCPM_for_plotting.csv")
+```
+
+```{r}
+gene_names <- cpm_matrix %>% select(gene)
+gene_names <- gene_names %>% mutate(Ensembl_gene = rownames(gene_names))
+finaldf <- left_join(resDF, gene_names, by = "Ensembl_gene") %>% mutate(gene = case_when(is.na(gene) ~ Ensembl_gene,
+                                                                                         TRUE ~ gene))
+# Save results to a CSV file
+write.csv(resDF, file = "DESeq2_results.csv")
+```
+
+```{r}
+resDF %>% filter(log2FoldChange >= 1, padj <= 0.05)
+resDF %>% filter(log2FoldChange <= -1, padj <= 0.05, str_detect(gene, "ENSG"))
+
+```
+
+
+#Plotting the VolcanoPlot
+```{r}
+if (!requireNamespace("EnhancedVolcano", quietly = TRUE)) {
+    install.packages("BiocManager")
+    BiocManager::install("EnhancedVolcano")
+}
+library(EnhancedVolcano)
+```
+```{r}
+# Load ggplot2 if not already installed
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    install.packages("ggplot2")
+}
+library(ggplot2)
+
+#Load resDF again
+resDF <- read.csv("DESeq2_results.csv")
+
+# Create a new column for significance
+resDF$significance <- "Not Significant"
+resDF$significance[resDF$padj < 0.05 & abs(resDF$log2FoldChange) > 1] <- "Significant"
+
+# Basic Volcano Plot
+ggplot(resDF, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = significance), alpha = 0.8, size = 2) +
+  scale_color_manual(values = c("Not Significant" = "grey", "Significant" = "red")) +
+  labs(
+    title = "Volcano Plot",
+    x = "Log2 Fold Change",
+    y = "-Log10 Adjusted P-value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+
+```
+#Plotting the HeatMap
+#Regularized Log (rlog) Transformation:
+```{r}
+# Apply rlog transformation (ideal for visualization)
+rlog_counts <- rlog(dds, blind = TRUE)
+
+# Save the rlog-transformed counts to a file
+saveRDS(rlog_counts, file = "rlog_transformed_counts.rds")
+```
+
+```{r}
+#Load file
+rlog_counts <- readRDS("rlog_transformed_counts.rds")
+
+# Extract matrix for heatmap
+heatmap_matrix <- assay(rlog_counts)
+```
+
+
+#Select Specific Genes for Heatmap
+```{r}
+# Specify genes of interest
+#Load resDF again
+resDF <- read.csv("DESeq2_results.csv")
+resDF <- resDF %>% mutate(gene = case_when(!str_detect(gene, "[A-Za-z0-9]") ~ Ensembl_gene,
+                                    TRUE ~ gene))
+head(resDF)
+n = 50
+top_up <- resDF %>% arrange(padj) %>% filter(log2FoldChange > 0) %>% slice_head(n = n) %>% pull(Ensembl_gene)
+top_down <- resDF %>% arrange(padj) %>% filter(log2FoldChange < 0) %>% slice_head(n = n) %>% pull(Ensembl_gene)
+
+genes_of_interest <- c(top_up, top_down)  # Replace with your genes
+
+# Ensure gene names match your rownames in heatmap_matrix
+selected_genes <- heatmap_matrix[rownames(heatmap_matrix) %in% genes_of_interest, ]
+
+idx <- match(rownames(selected_genes), resDF$Ensembl_gene)
+
+all(resDF[idx,"Ensembl_gene"] == rownames(selected_genes))
+
+rownames(selected_genes) <- resDF[idx,"gene"]
+
+# Transpose and scale for visualization
+scaled_heatmap_matrix <- t(scale(t(selected_genes)))
+
+```
+
+```{r}
+library(pheatmap)
+
+# Save as a vector PDF
+pdf(paste0("./figures/Paper_figures/DeepVsSQ_top",n,"_DGE_heatmap.pdf"), width = 6, height = 8)  # Adjust size in inches
+pheatmap(
+  scaled_heatmap_matrix,
+  cluster_rows = TRUE,    # Remove row clustering (no dendrogram for rows)
+  cluster_cols = FALSE,    # Remove column clustering (no dendrogram for columns)
+  show_rownames = TRUE,   # Hide row names
+  fontsize_row = 6/(n/50),           # Reduce row name font size (adjust value as needed)
+  color = colorRampPalette(c("blue", "white", "red"))(50),
+  main = paste("Top",n, "DGE - Deep vs Subcutaneous")
+)
+dev.off()  # Close the PDF device
+
+# Save as a vector PDF
+png(paste0("./figures/Paper_figures/Supplementary_Figure_HeatMap/DeepVsSQ_top",n,"_DGE_heatmap.png"), width = 6, height = 8, units = "in", res = 300)  # Adjust size in inches
+pheatmap(
+  scaled_heatmap_matrix,
+  cluster_rows = TRUE,    # Remove row clustering (no dendrogram for rows)
+  cluster_cols = FALSE,    # Remove column clustering (no dendrogram for columns)
+  show_rownames = TRUE,   # Hide row names
+  fontsize_row = 6/(n/50),           # Reduce row name font size (adjust value as needed)
+  color = colorRampPalette(c("blue", "white", "red"))(50),
+  main = paste("Top",n, "DGE - Deep vs Subcutaneous")
+)
+dev.off()  # Close the PDF device
+
+pheatmap(
+  scaled_heatmap_matrix,
+  cluster_rows = TRUE,    # Remove row clustering (no dendrogram for rows)
+  cluster_cols = FALSE,    # Remove column clustering (no dendrogram for columns)
+  show_rownames = TRUE,   # Hide row names
+  fontsize_row = 6/(n/50),           # Reduce row name font size (adjust value as needed)
+  color = colorRampPalette(c("blue", "white", "red"))(50),
+  main = paste("Top",n, "DGE - Deep vs Subcutaneous")
+)
+```
+
+#Plotting the Genes Differences between Deep and SC
+```{r}
+# Specify genes of interest
+genes_of_interest <- c(
+  "TSHR",    # TSH receptor
+  "THRA",    # Thyroid hormone receptor alpha
+  "THRB",    # Thyroid hormone receptor beta
+  "SLC16A10",
+  "SLC16A2",
+  "UCP1",    # Uncoupling protein 1
+  "ADRB3",   # Beta-3 adrenergic receptor
+  "PRDM16",
+  "EBF2",
+  "PPARGC1A",
+  "DIO1",    # Deiodinase 1
+  "DIO2",    # Deiodinase 2
+  "DIO3",    # Deiodinase 3
+  "CKMT1A",
+  "CKMT2",
+  "CKB",
+  "SLC6A8",
+  "ALPL"
+)
+
+genes_of_interest <- genes_of_interest[genes_of_interest %in% resDF$gene]
+```
+
+```{r}
+# Load the DESEQ2 object
+dds <- readRDS("DESeq2_object.rds")
+
+# Extract normalized counts from DESeq2 object
+norm_counts <- counts(dds, normalized = TRUE)
+log10_norm_counts <- log10(norm_counts + 1)
+norm_counts <- log10_norm_counts
+```
+
+
+```{r}
+#Load resDF again
+resDF <- read.csv("DESeq2_results.csv")
+resDF <- resDF %>% mutate(gene = case_when(!str_detect(gene, "[A-Za-z0-9]") ~ Ensembl_gene,
+                                    TRUE ~ gene))
+head(resDF)
+
+ens_genes_of_interest <- resDF %>% dplyr::filter(gene %in% genes_of_interest) %>% pull(Ensembl_gene)
+
+# Ensure gene names match your rownames in heatmap_matrix
+selected_norm_counts <- norm_counts[rownames(norm_counts) %in% ens_genes_of_interest, ]
+
+idx <- match(rownames(selected_norm_counts), resDF$Ensembl_gene)
+
+all(resDF[idx,"Ensembl_gene"] == rownames(selected_norm_counts))
+
+rownames(selected_norm_counts) <- resDF[idx,"gene"]
+
+# Melt data for plotting (reshape to long format)
+library(reshape2)
+norm_counts_long <- melt(as.data.frame(selected_norm_counts), variable.name = "Sample", value.name = "Expression")
+
+# Add metadata
+norm_counts_long <- merge(norm_counts_long, coldata, by.x = "Sample", by.y = "row.names") %>% mutate(
+  gene = rep(rownames(selected_norm_counts), times = nrow(norm_counts_long)/length(genes_of_interest)),
+                                                                                                     subject_id = str_extract(Sample, "\\d+"))
+```
+#Add Deseq2 pvals
+```{r}
+#Get pvalues
+# Subset and reorder the dataframe
+p_values <- resDF %>%
+  filter(gene %in% genes_of_interest) %>%
+  mutate(gene = factor(gene, levels = genes_of_interest)) %>%
+  arrange(gene) %>%
+  select(gene, pvalue)
+
+# Merge p-values with the original data to get y-position for annotations
+annotated_data <- norm_counts_long %>%
+  group_by(gene, condition) %>%
+  summarise(max_expression = max(Expression), .groups = "drop") %>%
+  left_join(p_values, by = "gene") %>%
+  group_by(gene) %>%
+  summarise(
+    p_value = unique(pvalue),
+    y_position = max(max_expression) + 0.5 # Adjust placement
+  )
+
+norm_counts_long$gene <- factor(norm_counts_long$gene, levels = genes_of_interest)
+
+# Add p-value annotations to the plot
+ggplot(norm_counts_long, aes(x = condition, y = Expression)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +
+  geom_jitter(width = 0) +
+  geom_line(aes(group = subject_id), alpha = 1, size = 0.7) +
+  
+  # Add p-value annotations
+  geom_text(
+    data = annotated_data,
+    aes(x = 1.5, y = y_position, label = paste0("p = ", signif(p_value, 3))),
+    inherit.aes = FALSE, # Prevent ggplot from inheriting x/y aesthetics
+    size = 5
+  ) +
+
+  # Labels and theme
+  labs(
+    title = "Gene Expression by Condition",
+    x = NULL,
+    y = "Expression (log10 Normalized Counts)"
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = "none"
+  ) +
+  facet_wrap(~ gene, scales = "free")
+
+```
+#Plot and save genes individually
+```{r}
+for(plot.gene in genes_of_interest){
+  
+  # Get pvalues
+  # Subset and reorder the dataframe
+  p_values <- resDF %>%
+    filter(gene == plot.gene) %>%
+    select(gene, pvalue)
+
+  # Merge p-values with the original data to get y-position for annotations
+  annotated_data <- norm_counts_long %>%
+    filter(gene == plot.gene) %>%
+    group_by(gene, condition) %>%
+    summarise(max_expression = max(Expression), .groups = "drop") %>%
+    left_join(p_values, by = "gene") %>%
+    group_by(gene) %>%
+    summarise(
+      p_value = unique(pvalue),
+      y_position = max(max_expression) + 0.5 # Adjust placement
+    )
+
+  plot.data <- norm_counts_long %>%
+    filter(gene == plot.gene)
+
+  # Add p-value annotations to the plot
+  p <- ggplot(plot.data, aes(x = condition, y = Expression)) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.6) +
+    geom_jitter(width = 0) +
+    geom_line(aes(group = subject_id), alpha = 1, size = 0.3) +
+    
+    # Add p-value annotations
+    geom_text(
+      data = annotated_data,
+      aes(x = 1.5, y = y_position, label = paste0("p = ", signif(p_value, 3))),
+      inherit.aes = FALSE, # Prevent ggplot from inheriting x/y aesthetics
+      size = 3  # Adjusted font size for annotation
+    ) +
+  
+    # Labels and theme
+    labs(
+      title = plot.gene,
+      x = NULL,
+      y = "Expression (log10 Normalized Counts)"
+    ) +
+    theme_classic() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(size = 8, hjust = 0.5, face = "bold"),  # Adjusted font size for title
+      axis.title.y = element_text(size = 7),            # Adjusted font size for axis label
+      axis.text = element_text(size = 6),               # Adjusted font size for axis text
+      strip.text = element_text(size = 7)               # Adjusted font size for facet labels
+    )
+
+  print(p)
+
+  # Save the plot
+  ggsave(
+    filename = paste0("./figures/Paper_figures/Figure_3/", plot.gene, ".png"),
+    plot = p,
+    device = "png",
+    units = "in",
+    width = 1.5,
+    height = 2.25,
+    dpi = 300
+  )
+}
+
+```
+
+#Plotting local T3 and local T4 in deep and SC
+```{r}
+meta
+colnames(meta)[3:6]
+for(variable in colnames(meta)[3:6]){
+  # Get pvalues
+  p_values <- compare_means(as.formula(paste0(variable, "~ tissue")), meta, paired = T)
+  p_values <- p_values$p.adj
+  # Merge p-values with the original data to get y-position for annotations
+  annotated_data <- meta %>%
+    select(!!sym(variable), tissue) %>%
+    filter(!is.na(!!sym(variable))) %>%
+    group_by(tissue) %>%
+    summarise(max_expression = max(!!sym(variable)), .groups = "drop") %>%
+    summarise(
+      p_value = p_values,
+      y_position = max(max_expression) + 0.5 # Adjust placement
+    )
+  
+  #Plot data
+  p <- ggplot(meta, aes(x = tissue, y = !!sym(variable))) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.6) +
+    geom_jitter(width = 0) +
+    geom_line(aes(group = subject), alpha = 1, size = 0.3) +
+
+    
+    # Add p-value annotations
+    geom_text(
+      data = annotated_data,
+      aes(x = 1.5, y = y_position, label = paste0("p = ", signif(p_value, 3))),
+      inherit.aes = FALSE, # Prevent ggplot from inheriting x/y aesthetics
+      size = 3  # Adjusted font size for annotation
+    ) +
+  
+    # Labels and theme
+    theme_classic() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(size = 8, hjust = 0.5, face = "bold"),  # Adjusted font size for title
+      axis.title.y = element_text(size = 7),            # Adjusted font size for axis label
+      axis.text = element_text(size = 6),               # Adjusted font size for axis text
+      strip.text = element_text(size = 7),               # Adjusted font size for facet labels
+      axis.title.x = element_blank()
+    )
+
+  print(p)
+  
+    # Save the plot
+  ggsave(
+    filename = paste0("./figures/Paper_figures/Figure_3/", variable, ".png"),
+    plot = p,
+    device = "png",
+    units = "in",
+    width = 1.5,
+    height = 2.25,
+    dpi = 300
+  )
+}
+```
+
+
