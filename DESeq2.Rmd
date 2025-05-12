@@ -8,11 +8,11 @@ output: html_document
 ```{r setup}
 
 # BiocManager::install("DESeq2")
-# Load necessary libraries
+# # Load necessary libraries
 library(DESeq2)
-library(readxl)
-library(tidyverse)
+library(openxlsx)
 library(ggpubr)
+library(tidyverse)
 
 ```
 
@@ -71,7 +71,7 @@ write.csv(resDF, file = "DESeq2_results.csv")
 ```
 
 ```{r}
-cpm_matrix <- read.csv("./logCPM_for_plotting.csv")
+cpm_matrix <- read.csv("./logCPM_for_plotting.csv", row.names = 1)
 ```
 
 ```{r}
@@ -79,6 +79,8 @@ gene_names <- cpm_matrix %>% select(gene)
 gene_names <- gene_names %>% mutate(Ensembl_gene = rownames(gene_names))
 finaldf <- left_join(resDF, gene_names, by = "Ensembl_gene") %>% mutate(gene = case_when(is.na(gene) ~ Ensembl_gene,
                                                                                          TRUE ~ gene))
+
+resDF <- finaldf
 # Save results to a CSV file
 write.csv(resDF, file = "DESeq2_results.csv")
 ```
@@ -254,6 +256,9 @@ norm_counts <- log10_norm_counts
 ```{r}
 #Load resDF again
 resDF <- read.csv("DESeq2_results.csv")
+
+resDF %>% filter(gene %in% c("DIO3", "THRB", "CKB"))
+rm(gene)
 resDF <- resDF %>% mutate(gene = case_when(!str_detect(gene, "[A-Za-z0-9]") ~ Ensembl_gene,
                                     TRUE ~ gene))
 head(resDF)
@@ -336,7 +341,7 @@ for(plot.gene in genes_of_interest){
   # Subset and reorder the dataframe
   p_values <- resDF %>%
     filter(gene == plot.gene) %>%
-    select(gene, pvalue)
+    select(gene, padj) 
 
   # Merge p-values with the original data to get y-position for annotations
   annotated_data <- norm_counts_long %>%
@@ -346,7 +351,7 @@ for(plot.gene in genes_of_interest){
     left_join(p_values, by = "gene") %>%
     group_by(gene) %>%
     summarise(
-      p_value = unique(pvalue),
+      p_value = unique(padj), #SELECT ADJUSTED P VALUE HERE!
       y_position = max(max_expression) + 0.5 # Adjust placement
     )
 
@@ -362,7 +367,7 @@ for(plot.gene in genes_of_interest){
     # Add p-value annotations
     geom_text(
       data = annotated_data,
-      aes(x = 1.5, y = y_position, label = paste0("p = ", signif(p_value, 3))),
+      aes(x = 1.5, y = y_position, label = paste0("FDR = ", signif(p_value, 3))),
       inherit.aes = FALSE, # Prevent ggplot from inheriting x/y aesthetics
       size = 3  # Adjusted font size for annotation
     ) +
@@ -402,6 +407,11 @@ for(plot.gene in genes_of_interest){
 ```{r}
 meta
 colnames(meta)[3:6]
+if(any(colnames(meta) == "Tissue")){
+meta <- meta %>% dplyr::rename("tissue" = "Tissue", "subject" = "Donor_ID")
+meta <- meta %>% dplyr::rename("subject" = "Donor_ID")
+}
+
 for(variable in colnames(meta)[3:6]){
   # Get pvalues
   p_values <- compare_means(as.formula(paste0(variable, "~ tissue")), meta, paired = T)
@@ -457,5 +467,74 @@ for(variable in colnames(meta)[3:6]){
   )
 }
 ```
+
+```{r}
+# Step 1: Collect raw p-values
+pvals <- c()
+variables <- colnames(meta)[3:6]
+
+for (variable in variables) {
+  test_result <- compare_means(as.formula(paste0(variable, "~ tissue")), meta, paired = TRUE, p.adjust.method = "none")
+  pvals <- c(pvals, test_result$p)
+}
+
+# Step 2: Apply FDR correction
+fdr_vals <- p.adjust(pvals, method = "fdr")
+
+# Step 3: Generate plots with FDR values
+for (i in seq_along(variables)) {
+  variable <- variables[i]
+  fdr <- fdr_vals[i]
+
+  # Get y-position for annotation
+  annotated_data <- meta %>%
+    select(!!sym(variable), tissue) %>%
+    filter(!is.na(!!sym(variable))) %>%
+    group_by(tissue) %>%
+    summarise(max_expression = max(!!sym(variable)), .groups = "drop") %>%
+    summarise(
+      y_position = max(max_expression) + 0.5
+    ) %>%
+    mutate(FDR = fdr)
+
+  # Plot
+  p <- ggplot(meta, aes(x = tissue, y = !!sym(variable))) +
+    geom_boxplot(outlier.shape = NA, alpha = 0.6) +
+    geom_jitter(width = 0) +
+    geom_line(aes(group = subject), alpha = 1, size = 0.3) +
+    geom_text(
+      data = annotated_data,
+      aes(x = 1.5, y = y_position, label = paste0("FDR = ", signif(FDR, 3))),
+      inherit.aes = FALSE,
+      size = 3
+    ) +
+    theme_classic() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(size = 8, hjust = 0.5, face = "bold"),
+      axis.title.y = element_text(size = 7),
+      axis.text = element_text(size = 6),
+      strip.text = element_text(size = 7),
+      axis.title.x = element_blank()
+    )
+
+  print(p)
+
+  ggsave(
+    filename = paste0("./figures/Paper_figures/Figure_3/", variable, ".png"),
+    plot = p,
+    device = "png",
+    units = "in",
+    width = 1.5,
+    height = 2.25,
+    dpi = 300
+  )
+}
+
+
+pvals
+fdr_vals
+```
+
 
 
