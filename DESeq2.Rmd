@@ -335,6 +335,7 @@ ggplot(norm_counts_long, aes(x = condition, y = Expression)) +
 ```
 #Plot and save genes individually
 ```{r}
+plots <- list()
 for(plot.gene in genes_of_interest){
   
   # Get pvalues
@@ -352,9 +353,12 @@ for(plot.gene in genes_of_interest){
     group_by(gene) %>%
     summarise(
       p_value = unique(padj), #SELECT ADJUSTED P VALUE HERE!
-      y_position = max(max_expression) + 0.5 # Adjust placement
-    )
-
+      y_position = max(max_expression) + 0.5, # Adjust placement
+      fdr_label = ifelse(p_value < 0.01, "FDR < 0.01", paste0("FDR = ", signif(p_value, 1)))
+)
+  if(annotated_data$p_value < 0.05){
+    print(plot.gene)
+  }
   plot.data <- norm_counts_long %>%
     filter(gene == plot.gene)
 
@@ -362,12 +366,12 @@ for(plot.gene in genes_of_interest){
   p <- ggplot(plot.data, aes(x = condition, y = Expression)) +
     geom_boxplot(outlier.shape = NA, alpha = 0.6) +
     geom_jitter(width = 0) +
-    geom_line(aes(group = subject_id), alpha = 1, size = 0.3) +
+    geom_line(aes(group = subject_id), alpha = 1, linewidth = 0.3) +
     
     # Add p-value annotations
     geom_text(
       data = annotated_data,
-      aes(x = 1.5, y = y_position, label = paste0("FDR = ", signif(p_value, 3))),
+      aes(x = 1.5, y = y_position, label = fdr_label),
       inherit.aes = FALSE, # Prevent ggplot from inheriting x/y aesthetics
       size = 3  # Adjusted font size for annotation
     ) +
@@ -388,6 +392,8 @@ for(plot.gene in genes_of_interest){
     )
 
   print(p)
+  
+  plots[[plot.gene]] <- p
 
   # Save the plot
   ggsave(
@@ -400,7 +406,6 @@ for(plot.gene in genes_of_interest){
     dpi = 300
   )
 }
-
 ```
 
 #Plotting local T3 and local T4 in deep and SC
@@ -427,6 +432,11 @@ for(variable in colnames(meta)[3:6]){
       y_position = max(max_expression) + 0.5 # Adjust placement
     )
   
+  #Define annotation
+  hormone <- str_extract(variable,"T\\d")
+  plot_title <- ifelse(hormone == "T3", "Tissue T3", "Tissue T4") #Detects if T3 or T4
+  y_axis_title <- ifelse(str_detect(variable, "tissue"), paste0(hormone, "nM/mg tissue"), paste0(hormone, " nM/µg protein in tissue"))
+  
   #Plot data
   p <- ggplot(meta, aes(x = tissue, y = !!sym(variable))) +
     geom_boxplot(outlier.shape = NA, alpha = 0.6) +
@@ -451,7 +461,9 @@ for(variable in colnames(meta)[3:6]){
       axis.text = element_text(size = 6),               # Adjusted font size for axis text
       strip.text = element_text(size = 7),               # Adjusted font size for facet labels
       axis.title.x = element_blank()
-    )
+    ) +
+    labs(title = plot_title,
+         y = y_axis_title)
 
   print(p)
   
@@ -495,7 +507,14 @@ for (i in seq_along(variables)) {
     summarise(
       y_position = max(max_expression) + 0.5
     ) %>%
-    mutate(FDR = fdr)
+    mutate(FDR = signif(fdr, digits = 1))
+  
+    #Define annotation
+  hormone <- str_extract(variable,"T\\d")
+  plot_title <- ifelse(hormone == "T3", "Tissue T3", "Tissue T4") #Detects if T3 or T4
+  y_axis_title <- ifelse(str_detect(variable, "tissue"), paste0(hormone, "nM/mg tissue"), paste0(hormone, " nM/µg protein in tissue"))
+
+  
 
   # Plot
   p <- ggplot(meta, aes(x = tissue, y = !!sym(variable))) +
@@ -516,10 +535,13 @@ for (i in seq_along(variables)) {
       axis.text = element_text(size = 6),
       strip.text = element_text(size = 7),
       axis.title.x = element_blank()
-    )
+    )  +
+    labs(title = plot_title,
+         y = y_axis_title)
 
   print(p)
-
+  
+  plots[[variable]] <- p
   ggsave(
     filename = paste0("./figures/Paper_figures/Figure_3/", variable, ".png"),
     plot = p,
@@ -535,6 +557,49 @@ for (i in seq_along(variables)) {
 pvals
 fdr_vals
 ```
+#Saving the panel
 
+
+```{r}
+variables
+
+ordered_plot_names <- list(
+  c("T3_μg_protein", "T4_μg_protein", "T3_mg_tissue", "T4_mg_tissue"),
+  c("TSHR","THRA", "THRB"),
+  c( "SLC16A2", "SLC16A10", "SLC6A8"),
+  c("DIO1", "DIO2", "DIO3", "ADRB3"),
+  c("UCP1", "PRDM16", "EBF2", "PPARGC1A"),
+  c("CKB", "CKMT1A", "CKMT2", "ALPL")
+)
+
+max_cols <- max(sapply(ordered_plot_names, length))
+
+# Flatten into a grid row-wise with NULL padding
+flat_layout <- unlist(lapply(ordered_plot_names, function(row) {
+  c(row, rep(NA, max_cols - length(row)))  # pad to match row length
+}), use.names = FALSE)
+
+tagged_ordered_plots <- vector("list", length(flat_layout))
+tag_counter <- 1
+
+for (i in seq_along(flat_layout)) {
+  gene <- flat_layout[i]
+  
+  if (!is.na(gene)) {
+    # Add tag to the plot
+    tagged_ordered_plots[[i]] <- plots[[gene]] + labs(tag = LETTERS[tag_counter])
+    tag_counter <- tag_counter + 1
+  } else {
+    # Insert blank
+    tagged_ordered_plots[[i]] <- patchwork::plot_spacer()
+  }
+}
+
+library(patchwork)
+
+final_plot <- wrap_plots(tagged_ordered_plots, ncol = max_cols)
+
+ggsave("./figures/Paper_figures/Figure_3/DESeq_Panel.png", plot = final_plot, width = 4, height = 8, scale = 1.7, units = "in", dpi = 600, bg = "whitesmoke")
+```
 
 
