@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(tidyverse)
 library(stringr)
-library(readxl)
+library(openxlsx)
 
 # Define a custom theme
 custom_theme <-  theme_bw() + theme(
@@ -106,6 +106,7 @@ print("Path list created successfully.")
 ```
 
 Reading BMI adjusted
+
 ```{r}
 # Define a function to format text (ensure this is defined elsewhere in your code)
 format_text <- function(text) {
@@ -122,28 +123,21 @@ format_text <- function(text) {
 # Path to the Excel file
 path <- "./BMI_temp_covars/reactome_gsea.xlsx"
 
-# Get sheet names from the Excel file
-sheet_names <- excel_sheets(path)
+path <- "./BMI_temp_covars/reactome_gsea.xlsx"
+sheet_names <- getSheetNames(path)
 
-# Read each sheet into a list of data frames and process them
 sheets <- lapply(sheet_names, function(sheet) {
-  df <- read_excel(path, sheet = sheet)
+  df <- read.xlsx(path, sheet = sheet)
   df$Cluster <- sheet
-  df$Description <- format_text(df$Description)  # Format pathway description
+  df$Description <- format_text(df$Description)
   return(df)
 })
 
-# Assign sheet names to list elements
 names(sheets) <- sheet_names
-
-# Combine all data frames into one using rbind
 BMI_temp <- bind_rows(sheets)
-
-# Add the combined data frame to the path_list
 path_list[["BMI_temp"]] <- BMI_temp
-
-# Remove the intermediate variable to free up memory
 rm(BMI_temp)
+
 ```
 
 
@@ -694,6 +688,12 @@ for (covar in covars) {
   # Create plot ordered by NES
   g <- ggplot(plot.data, aes(Tissue, Description)) +
   geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
+      # Add asterisks for p.adjust < 0.05
+  geom_text(data = plot.data %>% filter(p.adjust < 0.05), 
+            aes(label = "*"), 
+            color = "black", 
+            size = 7, 
+            vjust = 0.2) +
   
   scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
@@ -715,6 +715,9 @@ for (covar in covars) {
   # Save plot as PNG with date prefix
   ggsave(filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
          plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T)
+  ggsave(filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths_High_Res")),
+         plot = g, device = "svg", width = w, height = h, units = "in", dpi = 600, create.dir = T)
+
   
   g_flipped = g + coord_flip() + theme(axis.text.x = element_text(angle = 90))
   
