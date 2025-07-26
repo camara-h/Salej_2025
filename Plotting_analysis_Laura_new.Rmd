@@ -10,9 +10,9 @@ source("Plotting_analysis_Laura_new_Source.R")
 ```
 
 ```{r}
-#Change the names of the genes to plot here
-genes.to.plot = c(
-                    "LEP", "UCP1"  #Change the names of the genes to plot here, separated by commas and quoted
+# Change the names of the genes to plot here
+genes.to.plot <- c(
+  "LEP", "UCP1" # Change the names of the genes to plot here, separated by commas and quoted
 )
 
 PlotGeneCorrelation(genes.to.plot, FDR_threshold = 0.15)
@@ -26,56 +26,61 @@ names(meta)
 
 # Loop over each gene
 for (n in 1:length(ens_genes_of_interest)) {
-  gene = sym_genes_of_interest[n]
-  ens_gene = ens_genes_of_interest[n] 
-  
+  gene <- sym_genes_of_interest[n]
+  ens_gene <- ens_genes_of_interest[n]
+
   for (variable in names(meta)[3:9]) {
-    
     # Prepare data for plotting
     plot_data <- data_merged %>%
       select(contains(ens_gene), tissue, subject, all_of(variable)) %>%
       na.omit() %>% # Remove rows with NA
-     filter(.data[[variable]] > 0) #Remove 0 values
-    plot_data[[variable]] = as.numeric(plot_data[[variable]])
+      filter(.data[[variable]] > 0) # Remove 0 values
+    plot_data[[variable]] <- as.numeric(plot_data[[variable]])
 
     # Create plot title
-    plot_title <- correct_mg_string(paste("Log2-Pearson: ",gene, " X ", variable))
-    max_y = max(plot_data[ens_gene])
-    
-    #Collect axis information (This plot is only used to get the frame of the plot)
-    p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#743f1e", "#ffd045"),           # Color by groups "cyl"
-          label = "subject",
-          mean.point = TRUE, # Change point shape by groups "cyl"
-          title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue), 
-          label.x.npc = "left", label.y = c(max_y*2,max_y-1)
-          )    +
+    plot_title <- correct_mg_string(paste("Log2-Pearson: ", gene, " X ", variable))
+    max_y <- max(plot_data[ens_gene])
+
+    # Collect axis information (This plot is only used to get the frame of the plot)
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#743f1e", "#ffd045"), # Color by groups "cyl"
+      label = "subject",
+      mean.point = TRUE, # Change point shape by groups "cyl"
+      title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y * 2, max_y - 1)
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          labs(subtitle = ens_gene)
+      labs(subtitle = ens_gene)
     p_built <- ggplot_build(p)
     y_range <- plyr::ldply(p_built$layout$panel_params, function(x) x$y.range)
-    max_y = y_range[1,2]
-    min_y = y_range[1,1]
-    y_range = abs(min_y-max_y)
-    
-    #Plot
-        p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#E66100", "#5D3A9B"),           # Color by tissue
-          # label = "subject", #Add subject ID labels
-          mean.point = FALSE, # Add a point with the average expression of the group
-          title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log2CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue),
-          label.x.npc = "left", label.y = c(max_y,max_y-(y_range*0.05)) #Adjust the position of the regression stats
-          )    +
+    max_y <- y_range[1, 2]
+    min_y <- y_range[1, 1]
+    y_range <- abs(min_y - max_y)
+
+    # Plot
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#E66100", "#5D3A9B"), # Color by tissue
+      # label = "subject", #Add subject ID labels
+      mean.point = FALSE, # Add a point with the average expression of the group
+      title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log2CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y, max_y - (y_range * 0.05)) # Adjust the position of the regression stats
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
-          guides(label = "none") +
-                ##The code below should be useless based on the theme_set above
+      # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
+      guides(label = "none") +
+      ## The code below should be useless based on the theme_set above
       theme_classic() +
       theme(
         axis.title = element_text(size = 20),
@@ -85,7 +90,7 @@ for (n in 1:length(ens_genes_of_interest)) {
         legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)
       )
-    ggsave(paste0("./output/figures/Gene_corr/",gene,"/", gene,"_",ens_gene,"_",variable,"LOG2_PEARSON.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
+    ggsave(paste0("./output/figures/Gene_corr/", gene, "/", gene, "_", ens_gene, "_", variable, "LOG2_PEARSON.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
 
     print(p)
   }
@@ -98,57 +103,62 @@ names(meta)
 
 # Loop over each gene
 for (n in 1:length(ens_genes_of_interest)) {
-  gene = sym_genes_of_interest[n]
-  ens_gene = ens_genes_of_interest[n] 
-  
+  gene <- sym_genes_of_interest[n]
+  ens_gene <- ens_genes_of_interest[n]
+
   for (variable in names(meta)[3:9]) {
-    
     # Prepare data for plotting
     plot_data <- data_merged %>%
       select(contains(ens_gene), tissue, subject, all_of(variable)) %>%
       na.omit() %>% # Remove rows with NA
-     filter(.data[[variable]] > 0) #Remove 0 values
-    plot_data[[variable]] = as.numeric(plot_data[[variable]])
-    plot_data[[ens_gene]] = log10(2^plot_data[[ens_gene]])
+      filter(.data[[variable]] > 0) # Remove 0 values
+    plot_data[[variable]] <- as.numeric(plot_data[[variable]])
+    plot_data[[ens_gene]] <- log10(2^plot_data[[ens_gene]])
 
     # Create plot title
-    plot_title <- correct_mg_string(paste("Log10-Pearson: ",gene, " X ", variable))
-    max_y = max(plot_data[ens_gene])
-    
-    #Collect axis information (This plot is only used to get the frame of the plot)
-    p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#743f1e", "#ffd045"),           # Color by groups "cyl"
-          label = "subject",
-          mean.point = TRUE, # Change point shape by groups "cyl"
-          title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue), 
-          label.x.npc = "left", label.y = c(max_y*2,max_y-1)
-          )    +
+    plot_title <- correct_mg_string(paste("Log10-Pearson: ", gene, " X ", variable))
+    max_y <- max(plot_data[ens_gene])
+
+    # Collect axis information (This plot is only used to get the frame of the plot)
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#743f1e", "#ffd045"), # Color by groups "cyl"
+      label = "subject",
+      mean.point = TRUE, # Change point shape by groups "cyl"
+      title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y * 2, max_y - 1)
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          labs(subtitle = ens_gene)
+      labs(subtitle = ens_gene)
     p_built <- ggplot_build(p)
     y_range <- plyr::ldply(p_built$layout$panel_params, function(x) x$y.range)
-    max_y = y_range[1,2]
-    min_y = y_range[1,1]
-    y_range = abs(min_y-max_y)
-    
-    #Plot
-        p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#E66100", "#5D3A9B"),           # Color by tissue
-          # label = "subject", #Add subject ID labels
-          mean.point = FALSE, # Add a point with the average expression of the group
-          title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log10CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue),
-          label.x.npc = "left", label.y = c(max_y,max_y-(y_range*0.05)) #Adjust the position of the regression stats
-          )    +
+    max_y <- y_range[1, 2]
+    min_y <- y_range[1, 1]
+    y_range <- abs(min_y - max_y)
+
+    # Plot
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#E66100", "#5D3A9B"), # Color by tissue
+      # label = "subject", #Add subject ID labels
+      mean.point = FALSE, # Add a point with the average expression of the group
+      title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log10CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y, max_y - (y_range * 0.05)) # Adjust the position of the regression stats
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
-          guides(label = "none") +
-                ##The code below should be useless based on the theme_set above
+      # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
+      guides(label = "none") +
+      ## The code below should be useless based on the theme_set above
       theme_classic() +
       theme(
         axis.title = element_text(size = 20),
@@ -158,7 +168,7 @@ for (n in 1:length(ens_genes_of_interest)) {
         legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)
       )
-    ggsave(paste0("./output/figures/Gene_corr/",gene,"/", gene,"_",ens_gene,"_",variable,"LOG10_PEARSON.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
+    ggsave(paste0("./output/figures/Gene_corr/", gene, "/", gene, "_", ens_gene, "_", variable, "LOG10_PEARSON.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
 
     print(p)
   }
@@ -171,57 +181,62 @@ names(meta)
 
 # Loop over each gene
 for (n in 1:length(ens_genes_of_interest)) {
-  gene = sym_genes_of_interest[n]
-  ens_gene = ens_genes_of_interest[n] 
-  
+  gene <- sym_genes_of_interest[n]
+  ens_gene <- ens_genes_of_interest[n]
+
   for (variable in names(meta)[3:9]) {
-    
     # Prepare data for plotting
     plot_data <- data_merged %>%
       select(contains(ens_gene), tissue, subject, all_of(variable)) %>%
       na.omit() %>% # Remove rows with NA
-     filter(.data[[variable]] > 0) #Remove 0 values
-    plot_data[[variable]] = as.numeric(plot_data[[variable]])
-    plot_data[[ens_gene]] = log10(2^plot_data[[ens_gene]])
+      filter(.data[[variable]] > 0) # Remove 0 values
+    plot_data[[variable]] <- as.numeric(plot_data[[variable]])
+    plot_data[[ens_gene]] <- log10(2^plot_data[[ens_gene]])
 
     # Create plot title
-    plot_title <- correct_mg_string(paste("Log10-Spearman: ",gene, " X ", variable))
-    max_y = max(plot_data[ens_gene])
-    
-    #Collect axis information (This plot is only used to get the frame of the plot)
-    p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#743f1e", "#ffd045"),           # Color by groups "cyl"
-          label = "subject",
-          mean.point = TRUE, # Change point shape by groups "cyl"
-          title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue), 
-          label.x.npc = "left", label.y = c(max_y*2,max_y-1)
-          )    +
+    plot_title <- correct_mg_string(paste("Log10-Spearman: ", gene, " X ", variable))
+    max_y <- max(plot_data[ens_gene])
+
+    # Collect axis information (This plot is only used to get the frame of the plot)
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#743f1e", "#ffd045"), # Color by groups "cyl"
+      label = "subject",
+      mean.point = TRUE, # Change point shape by groups "cyl"
+      title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y * 2, max_y - 1)
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          labs(subtitle = ens_gene)
+      labs(subtitle = ens_gene)
     p_built <- ggplot_build(p)
     y_range <- plyr::ldply(p_built$layout$panel_params, function(x) x$y.range)
-    max_y = y_range[1,2]
-    min_y = y_range[1,1]
-    y_range = abs(min_y-max_y)
-    
-    #Plot
-        p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#E66100", "#5D3A9B"),           # Color by tissue
-          # label = "subject", #Add subject ID labels
-          mean.point = FALSE, # Add a point with the average expression of the group
-          title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log10CPM)")) +
-          stat_cor(method = "spearman", cor.coef.name = "rho", aes(color = tissue),
-          label.x.npc = "left", label.y = c(max_y,max_y-(y_range*0.05)) #Adjust the position of the regression stats
-          )    +
+    max_y <- y_range[1, 2]
+    min_y <- y_range[1, 1]
+    y_range <- abs(min_y - max_y)
+
+    # Plot
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#E66100", "#5D3A9B"), # Color by tissue
+      # label = "subject", #Add subject ID labels
+      mean.point = FALSE, # Add a point with the average expression of the group
+      title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log10CPM)")
+    ) +
+      stat_cor(
+        method = "spearman", cor.coef.name = "rho", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y, max_y - (y_range * 0.05)) # Adjust the position of the regression stats
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
-          guides(label = "none") +
-                ##The code below should be useless based on the theme_set above
+      # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
+      guides(label = "none") +
+      ## The code below should be useless based on the theme_set above
       theme_classic() +
       theme(
         axis.title = element_text(size = 20),
@@ -231,7 +246,7 @@ for (n in 1:length(ens_genes_of_interest)) {
         legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)
       )
-    ggsave(paste0("./output/figures/Gene_corr/",gene,"/", gene,"_",ens_gene,"_",variable,"LOG10_SPEARMAN.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
+    ggsave(paste0("./output/figures/Gene_corr/", gene, "/", gene, "_", ens_gene, "_", variable, "LOG10_SPEARMAN.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
 
     print(p)
   }
@@ -240,22 +255,26 @@ for (n in 1:length(ens_genes_of_interest)) {
 
 #Plot adding JBC stats
 ```{r}
-#General stats
-BMI_adj = read.csv("C:/Users/henri/OneDrive/Área de Trabalho/Temp files/Gavrilla/BMI_temp_covars/gene_stats.csv")
-hyper_adj = read.csv("C:/Users/henri/OneDrive/Área de Trabalho/Temp files/Gavrilla/HypoHyper_weight/gene_stats.csv")
+# General stats
+BMI_adj <- read.csv("C:/Users/henri/OneDrive/Área de Trabalho/Temp files/Gavrilla/BMI_temp_covars/gene_stats.csv")
+hyper_adj <- read.csv("C:/Users/henri/OneDrive/Área de Trabalho/Temp files/Gavrilla/HypoHyper_weight/gene_stats.csv")
 
 all(
   names(BMI_adj) ==
-names(hyper_adj)
+    names(hyper_adj)
 )
-DP_SC_cols = grep("Deep_and_SC", names(BMI_adj), value = T)
-hyper_cols = grep("HYPER", names(BMI_adj), value = T)
+DP_SC_cols <- grep("Deep_and_SC", names(BMI_adj), value = T)
+hyper_cols <- grep("HYPER", names(BMI_adj), value = T)
 ```
 
 
 ```{r}
-BMI_adj %>% filter(X %in% ens_genes_of_interest[1]) %>% select(-DP_SC_cols)
-hyper_adj %>% filter(X %in% ens_genes_of_interest[1]) %>% select(-DP_SC_cols)
+BMI_adj %>%
+  filter(X %in% ens_genes_of_interest[1]) %>%
+  select(-DP_SC_cols)
+hyper_adj %>%
+  filter(X %in% ens_genes_of_interest[1]) %>%
+  select(-DP_SC_cols)
 ```
 
 
@@ -264,56 +283,61 @@ names(meta)
 
 # Loop over each gene
 for (n in 1:length(ens_genes_of_interest)) {
-  gene = sym_genes_of_interest[n]
-  ens_gene = ens_genes_of_interest[n] 
-  
+  gene <- sym_genes_of_interest[n]
+  ens_gene <- ens_genes_of_interest[n]
+
   for (variable in names(meta)[3:9]) {
-    
     # Prepare data for plotting
     plot_data <- data_merged %>%
       select(contains(ens_gene), tissue, subject, all_of(variable)) %>%
       na.omit() %>% # Remove rows with NA
-     filter(.data[[variable]] > 0) #Remove 0 values
-    plot_data[[variable]] = as.numeric(plot_data[[variable]])
+      filter(.data[[variable]] > 0) # Remove 0 values
+    plot_data[[variable]] <- as.numeric(plot_data[[variable]])
 
     # Create plot title
-    plot_title <- correct_mg_string(paste("Log2-Pearson: ",gene, " X ", variable))
-    max_y = max(plot_data[ens_gene])
-    
-    #Collect axis information (This plot is only used to get the frame of the plot)
-    p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#743f1e", "#ffd045"),           # Color by groups "cyl"
-          label = "subject",
-          mean.point = TRUE, # Change point shape by groups "cyl"
-          title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue), 
-          label.x.npc = "left", label.y = c(max_y*2,max_y-1)
-          )    +
+    plot_title <- correct_mg_string(paste("Log2-Pearson: ", gene, " X ", variable))
+    max_y <- max(plot_data[ens_gene])
+
+    # Collect axis information (This plot is only used to get the frame of the plot)
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#743f1e", "#ffd045"), # Color by groups "cyl"
+      label = "subject",
+      mean.point = TRUE, # Change point shape by groups "cyl"
+      title = plot_title, xlab = variable, ylab = paste0(gene, " (log2CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y * 2, max_y - 1)
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          labs(subtitle = ens_gene)
+      labs(subtitle = ens_gene)
     p_built <- ggplot_build(p)
     y_range <- plyr::ldply(p_built$layout$panel_params, function(x) x$y.range)
-    max_y = y_range[1,2]
-    min_y = y_range[1,1]
-    y_range = abs(min_y-max_y)
-    
-    #Plot
-        p = ggscatter(plot_data, x = variable, y = ens_gene,
-          add = "reg.line",                         # Add regression line
-          conf.int = TRUE,                          # Add confidence interval
-          color = "tissue", palette = c("#E66100", "#5D3A9B"),           # Color by tissue
-          # label = "subject", #Add subject ID labels
-          mean.point = FALSE, # Add a point with the average expression of the group
-          title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log2CPM)")) +
-          stat_cor(method = "pearson", aes(color = tissue),
-          label.x.npc = "left", label.y = c(max_y,max_y-(y_range*0.05)) #Adjust the position of the regression stats
-          )    +
+    max_y <- y_range[1, 2]
+    min_y <- y_range[1, 1]
+    y_range <- abs(min_y - max_y)
+
+    # Plot
+    p <- ggscatter(plot_data,
+      x = variable, y = ens_gene,
+      add = "reg.line", # Add regression line
+      conf.int = TRUE, # Add confidence interval
+      color = "tissue", palette = c("#E66100", "#5D3A9B"), # Color by tissue
+      # label = "subject", #Add subject ID labels
+      mean.point = FALSE, # Add a point with the average expression of the group
+      title = plot_title, xlab = correct_mg_string(variable), ylab = paste0(gene, " (log2CPM)")
+    ) +
+      stat_cor(
+        method = "pearson", aes(color = tissue),
+        label.x.npc = "left", label.y = c(max_y, max_y - (y_range * 0.05)) # Adjust the position of the regression stats
+      ) +
       scale_x_continuous(limits = c(min(plot_data[variable]), max(plot_data[variable]))) +
-          # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
-          guides(label = "none") +
-                ##The code below should be useless based on the theme_set above
+      # labs(subtitle = ens_gene)+ #This is for when we want to show the ENS ID
+      guides(label = "none") +
+      ## The code below should be useless based on the theme_set above
       theme_classic() +
       theme(
         axis.title = element_text(size = 20),
@@ -323,7 +347,7 @@ for (n in 1:length(ens_genes_of_interest)) {
         legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)
       )
-    ggsave(paste0("./output/figures/Gene_corr/",gene,"/", gene,"_",ens_gene,"_",variable,"LOG2_PEARSON.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
+    ggsave(paste0("./output/figures/Gene_corr/", gene, "/", gene, "_", ens_gene, "_", variable, "LOG2_PEARSON.png"), device = "png", plot = p, width = 6, height = 6, dpi = 300, create.dir = T)
 
     print(p)
   }

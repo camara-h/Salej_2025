@@ -276,3 +276,8 @@ scale <- 100
 
 ggsave(paste0("../output/3 - Figures and Analysis/figures/Figure_3", save_suffix, ".png"), create.dir = T, plot = final_plot, device = "png", width = 1 * scale, height = 1 * scale, units = "mm", dpi = 600, bg = "white")
 ```
+
+```{r}
+styler::style_dir()
+```
+

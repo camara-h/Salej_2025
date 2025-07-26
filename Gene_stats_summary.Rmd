@@ -13,7 +13,7 @@ library(stringr)
 library(readxl)
 
 # Define a custom theme
-custom_theme <-  theme_bw() + theme(
+custom_theme <- theme_bw() + theme(
   axis.title = element_text(size = 14),
   axis.text = element_text(size = 12),
   plot.title = element_text(size = 18, face = "bold"),
@@ -30,7 +30,7 @@ wrap_text <- function(x, width) {
   sapply(str_wrap(x, width = width), paste, collapse = "\n")
 }
 
-# 
+#
 # # Function to wrap text
 # wrap_text <- function(x, width) {
 #   str_wrap(x, width = width)
@@ -39,11 +39,11 @@ wrap_text <- function(x, width) {
 format_text <- function(text) {
   # Convert text to uppercase
   text_upper <- str_to_upper(text)
-  
+
   # Replace special characters with underscores
   text_clean <- str_replace_all(text_upper, "[^A-Z0-9]", "_")
-  text_clean <- gsub("__", "_", text_clean) #Replace potential double underscores created
-  
+  text_clean <- gsub("__", "_", text_clean) # Replace potential double underscores created
+
   return(text_clean)
 }
 ```
@@ -60,15 +60,16 @@ To achieve this objective I will:
 
 ```{r}
 getwd()
-dirs = list.dirs()[-1]
+dirs <- list.dirs()[-1]
 ```
 2) Extract the pathway name, significance and direction for each correlation. This will tell us for each covariate, what are the consistent changes.
 ```{r}
-path_list = list(
-HypoHyper = read.csv("./HypoHyper_weight/gene_stats.csv", row.names = 1),
-UCP1 = read.csv("./UCP1_weight/gene_stats.csv", row.names = 1),
-NoAdjustment = read.csv("./No_weight/gene_stats.csv", row.names = 1),
-Covar_adjusted = read.csv("./BMI_temp_covars/gene_stats.csv", row.names = 1))
+path_list <- list(
+  HypoHyper = read.csv("./HypoHyper_weight/gene_stats.csv", row.names = 1),
+  UCP1 = read.csv("./UCP1_weight/gene_stats.csv", row.names = 1),
+  NoAdjustment = read.csv("./No_weight/gene_stats.csv", row.names = 1),
+  Covar_adjusted = read.csv("./BMI_temp_covars/gene_stats.csv", row.names = 1)
+)
 
 path_list[[1]]
 ```
@@ -77,75 +78,81 @@ path_list[[1]]
 ```{r}
 # Extract correlation variables from the list
 # Retrieve names of variables that end with '.slope' and remove the '.slope' suffix
-cor_variables = names(path_list[[1]])[grepl(".slope$", names(path_list[[1]]))]
-cor_variables = gsub(".slope$", "", cor_variables)
+cor_variables <- names(path_list[[1]])[grepl(".slope$", names(path_list[[1]]))]
+cor_variables <- gsub(".slope$", "", cor_variables)
 cor_variables
 
 # Extract differential expression (DE) variables from the list
 # Retrieve names of variables that end with '.logFC' and remove the '.logFC' suffix
-deg_variables = names(path_list[[1]])[grepl(".logFC$", names(path_list[[1]]))]
-deg_variables = gsub(".logFC$", "", deg_variables)
+deg_variables <- names(path_list[[1]])[grepl(".logFC$", names(path_list[[1]]))]
+deg_variables <- gsub(".logFC$", "", deg_variables)
 deg_variables
 
 # Identify columns related to correlation and differential expression variables
 # Select columns whose names match the correlation variables (excluding file extensions)
-cor_cols = names(path_list[[1]])[sub("\\.[^\\.]*$", "",  names(path_list[[1]])) %in% cor_variables]
+cor_cols <- names(path_list[[1]])[sub("\\.[^\\.]*$", "", names(path_list[[1]])) %in% cor_variables]
 # Select columns whose names match the DE variables (excluding file extensions)
-deg_cols = names(path_list[[1]])[sub("\\.[^\\.]*$", "",  names(path_list[[1]])) %in% deg_variables]
+deg_cols <- names(path_list[[1]])[sub("\\.[^\\.]*$", "", names(path_list[[1]])) %in% deg_variables]
 
 # Identify columns related to p-values, FDR (False Discovery Rate), and slopes
 # Retrieve column names containing '.p'
-p_cols = grep("\\.p", names(path_list[[1]]), value = T)
+p_cols <- grep("\\.p", names(path_list[[1]]), value = T)
 # Retrieve column names containing '.FDR'
-FDR_cols = grep("\\.FDR", names(path_list[[1]]), value = T)
+FDR_cols <- grep("\\.FDR", names(path_list[[1]]), value = T)
 # Retrieve column names containing '.slope'
-slope_cols = grep("\\.slope", names(path_list[[1]]), value = T)
+slope_cols <- grep("\\.slope", names(path_list[[1]]), value = T)
 
 # Reshape the data from wide to long format, excluding DE columns
 # Convert the data frame to long format with correlation columns
-long_df = path_list[[1]] %>% dplyr::select(-deg_cols) %>% pivot_longer(cols = cor_cols)
+long_df <- path_list[[1]] %>%
+  dplyr::select(-deg_cols) %>%
+  pivot_longer(cols = cor_cols)
 
 # Create logical vectors for FDR and slope column identification
-fdrs = grepl("FDR", long_df$name)
-slopes = grepl("slope", long_df$name)
-pval = grepl("\\.p", long_df$name)
+fdrs <- grepl("FDR", long_df$name)
+slopes <- grepl("slope", long_df$name)
+pval <- grepl("\\.p", long_df$name)
 
 
 # Process FDR data
 # Filter long_df to keep only rows related to FDR
-fdr_df = long_df %>%
-  filter(fdrs) %>% 
-  dplyr::select(symbol, name, value) %>% 
-  mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>%  # Extract covariates from the name
-  distinct(symbol, name, .keep_all = T) %>%  # Remove duplicates
-  mutate("match_col" = paste(symbol, covariates)) %>%  # Create a match column combining symbol and covariates
-  dplyr::rename("FDR" = "value") %>%  # Rename 'value' to 'FDR'
+fdr_df <- long_df %>%
+  filter(fdrs) %>%
+  dplyr::select(symbol, name, value) %>%
+  mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
+  distinct(symbol, name, .keep_all = T) %>% # Remove duplicates
+  mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
+  dplyr::rename("FDR" = "value") %>% # Rename 'value' to 'FDR'
   dplyr::select(symbol, covariates, FDR)
 
 # Process slope data
 # Filter long_df to keep only rows related to slopes
-slope_df = long_df %>%
-  filter(slopes) %>% 
-  dplyr::select(symbol, name, value) %>% 
-  mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>%  # Extract covariates from the name
-  distinct(symbol, name, .keep_all = T) %>%  # Remove duplicates
-  mutate("match_col" = paste(symbol, covariates)) %>%  # Create a match column combining symbol and covariates
-  dplyr::rename("slope" = "value")  # Rename 'value' to 'slope'
+slope_df <- long_df %>%
+  filter(slopes) %>%
+  dplyr::select(symbol, name, value) %>%
+  mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
+  distinct(symbol, name, .keep_all = T) %>% # Remove duplicates
+  mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
+  dplyr::rename("slope" = "value") # Rename 'value' to 'slope'
 
 # Process pval data
 # Filter long_df to keep only rows related to pval
-pval_df = long_df %>%
-  filter(pval) %>% 
-  dplyr::select(symbol, name, value) %>% 
-  mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>%  # Extract covariates from the name
-  distinct(symbol, name, .keep_all = T) %>%  # Remove duplicates
-  mutate("match_col" = paste(symbol, covariates)) %>%  # Create a match column combining symbol and covariates
-  dplyr::rename("pval" = "value")  # Rename 'value' to 'slope'
+pval_df <- long_df %>%
+  filter(pval) %>%
+  dplyr::select(symbol, name, value) %>%
+  mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
+  distinct(symbol, name, .keep_all = T) %>% # Remove duplicates
+  mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
+  dplyr::rename("pval" = "value") # Rename 'value' to 'slope'
 
 # Combine FDR and slope data into a final data frame
 # Bind the slope data frame with the FDR data frame, ensuring columns align
-final_df = slope_df %>% dplyr::select(slope) %>% cbind(fdr_df)
-final_df = pval_df %>% dplyr::select(pval) %>% cbind(final_df)
+final_df <- slope_df %>%
+  dplyr::select(slope) %>%
+  cbind(fdr_df)
+final_df <- pval_df %>%
+  dplyr::select(pval) %>%
+  cbind(final_df)
 
 # Check if all 'match_col' values are equal between FDR and slope data frames
 all(fdr_df$match_col == slope_df$match_col)
@@ -155,54 +162,52 @@ head(final_df)
 ```
 # Correlation analysis
 ```{r}
-new_list = path_list
+new_list <- path_list
 # Iterate over each adjustment method specified in path_list
-for(adjust in names(new_list)){
-  
+for (adjust in names(new_list)) {
   # Special handling for the "BMI_temp" adjustment method
-  if(adjust == "BMI_temp"){
-    new_list[[adjust]] = new_list[[adjust]] %>% 
+  if (adjust == "BMI_temp") {
+    new_list[[adjust]] <- new_list[[adjust]] %>%
       dplyr::select(Cluster, Description, NES, p.adjust, Adjustment) %>% # Select columns of interest
       dplyr::group_by(Cluster) %>% # Group data by Cluster
       dplyr::arrange(p.adjust) %>% # Arrange rows by p.adjust in ascending order
       slice_head(n = 5) # Select the top 5 rows for each cluster
   } else {
-  
     # Prepare datasets for merging based on the current adjustment method
     # Extract correlation variable names from the dataset and remove the '.slope' suffix
-    cor_variables = names(new_list[[adjust]])[grepl(".slope$", names(new_list[[adjust]]))]
-    cor_variables = gsub(".slope$", "", cor_variables)
+    cor_variables <- names(new_list[[adjust]])[grepl(".slope$", names(new_list[[adjust]]))]
+    cor_variables <- gsub(".slope$", "", cor_variables)
     cor_variables
 
     # Extract differential expression variable names from the dataset and remove the '.logFC' suffix
-    deg_variables = names(new_list[[adjust]])[grepl(".logFC$", names(new_list[[adjust]]))]
-    deg_variables = gsub(".logFC$", "", deg_variables)
+    deg_variables <- names(new_list[[adjust]])[grepl(".logFC$", names(new_list[[adjust]]))]
+    deg_variables <- gsub(".logFC$", "", deg_variables)
     deg_variables
 
     # Identify columns related to correlation variables by matching against the cleaned names
-    cor_cols = names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% cor_variables]
+    cor_cols <- names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% cor_variables]
     # Identify columns related to differential expression variables by matching against the cleaned names
-    deg_cols = names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% deg_variables]
+    deg_cols <- names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% deg_variables]
 
     # Identify columns related to p-values, FDR, and slopes
-    p_cols = grep("\\.p", names(new_list[[adjust]]), value = T)
-    FDR_cols = grep("\\.FDR", names(new_list[[adjust]]), value = T)
-    slope_cols = grep("\\.slope", names(new_list[[adjust]]), value = T)
+    p_cols <- grep("\\.p", names(new_list[[adjust]]), value = T)
+    FDR_cols <- grep("\\.FDR", names(new_list[[adjust]]), value = T)
+    slope_cols <- grep("\\.slope", names(new_list[[adjust]]), value = T)
 
     # Reshape the dataset from wide to long format, excluding differential expression columns
-    long_df = new_list[[adjust]] %>% 
-      dplyr::select(-deg_cols) %>% 
+    long_df <- new_list[[adjust]] %>%
+      dplyr::select(-deg_cols) %>%
       pivot_longer(cols = cor_cols)
 
     # Create logical vectors to identify rows related to FDR and slope
-    fdrs = grepl("FDR", long_df$name)
-    slopes = grepl("slope", long_df$name)
-    pval = grepl("\\.p", long_df$name)
+    fdrs <- grepl("FDR", long_df$name)
+    slopes <- grepl("slope", long_df$name)
+    pval <- grepl("\\.p", long_df$name)
 
     # Process FDR data: filter, clean, and format the data
-    fdr_df = long_df %>% 
-      filter(fdrs) %>% 
-      dplyr::select(symbol, name, value) %>% 
+    fdr_df <- long_df %>%
+      filter(fdrs) %>%
+      dplyr::select(symbol, name, value) %>%
       mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
       distinct(symbol, name, .keep_all = T) %>% # Remove duplicate rows
       mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
@@ -210,50 +215,52 @@ for(adjust in names(new_list)){
       dplyr::select(symbol, covariates, FDR)
 
     # Process slope data: filter, clean, and format the data
-    slope_df = long_df %>% 
-      filter(slopes) %>% 
-      dplyr::select(symbol, name, value) %>% 
+    slope_df <- long_df %>%
+      filter(slopes) %>%
+      dplyr::select(symbol, name, value) %>%
       mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
       distinct(symbol, name, .keep_all = T) %>% # Remove duplicate rows
       mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
       dplyr::rename("slope" = "value") # Rename 'value' to 'slope'
-    
+
     # Process pval data
     # Filter long_df to keep only rows related to pval
-    pval_df = long_df %>%
-      filter(pval) %>% 
-      dplyr::select(symbol, name, value) %>% 
-      mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>%  # Extract covariates from the name
-      distinct(symbol, name, .keep_all = T) %>%  # Remove duplicates
-      mutate("match_col" = paste(symbol, covariates)) %>%  # Create a match column combining symbol and covariates
-      dplyr::rename("pval" = "value")  # Rename 'value' to 'slope'
-    
+    pval_df <- long_df %>%
+      filter(pval) %>%
+      dplyr::select(symbol, name, value) %>%
+      mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
+      distinct(symbol, name, .keep_all = T) %>% # Remove duplicates
+      mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
+      dplyr::rename("pval" = "value") # Rename 'value' to 'slope'
+
     head(final_df)
 
     # Combine FDR and slope data into a final data frame
-    final_df = slope_df %>% 
-      dplyr::select(slope) %>% 
+    final_df <- slope_df %>%
+      dplyr::select(slope) %>%
       cbind(fdr_df)
-    final_df = pval_df %>% dplyr::select(pval) %>% cbind(final_df)
+    final_df <- pval_df %>%
+      dplyr::select(pval) %>%
+      cbind(final_df)
 
 
     # Filter final_df to include only rows where FDR is the minimum within each covariate group and FDR is less than or equal to 0.15
-    final_df = final_df %>% 
-      group_by(covariates) %>% 
+    final_df <- final_df %>%
+      group_by(covariates) %>%
       # filter(FDR == min(FDR)) %>% #Comment this on if you want to keep all genes with FDR <0.15
       # filter(FDR <= 0.15) %>% #Comment this on if you want to keep all genes
       ungroup()
 
     # Create a column to store the origin of the adjustment method
-    final_df$Adjustment = adjust
+    final_df$Adjustment <- adjust
 
     # Update the new_list with the processed data for the current adjustment method
-    new_list[[adjust]] = final_df
+    new_list[[adjust]] <- final_df
   }
 }
 
 # Combine all data frames in new_list into a single data frame
-merged.df = do.call(rbind, new_list)
+merged.df <- do.call(rbind, new_list)
 
 # Optionally, remove trailing underscores from Description column if needed
 # merged.df$Description <- sub("_+$", "", merged.df$Description)
@@ -264,57 +271,60 @@ merged.df = do.call(rbind, new_list)
 Adjusting for FDR
 ```{r}
 # Plot the data for each covariate
-exclude_covars = grep("Deep_and_SC.", unique(merged.df$covariates), value = TRUE)
-covars = setdiff(unique(merged.df$covariates), exclude_covars)
+exclude_covars <- grep("Deep_and_SC.", unique(merged.df$covariates), value = TRUE)
+covars <- setdiff(unique(merged.df$covariates), exclude_covars)
 
 # Determine the range of -log10(FDR) values for setting axis limits
-min_FDR = min(-log10(merged.df$FDR), na.rm = TRUE)
-max_FDR = max(-log10(merged.df$FDR), na.rm = TRUE)
+min_FDR <- min(-log10(merged.df$FDR), na.rm = TRUE)
+max_FDR <- max(-log10(merged.df$FDR), na.rm = TRUE)
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_fdr_0.15_summary_top_padj.pdf", width = 12, height = 6)
 
 # Loop through each covariate and create a dot plot
-for(covar in covars) {
-  tryCatch({
-    # Filter merged.df to include only rows for the current covariate
-    plot.data = merged.df %>% filter(covariates == covar) %>% filter(FDR <= 0.15)
+for (covar in covars) {
+  tryCatch(
+    {
+      # Filter merged.df to include only rows for the current covariate
+      plot.data <- merged.df %>%
+        filter(covariates == covar) %>%
+        filter(FDR <= 0.15)
 
-    # Check if plot.data is empty
-    if(nrow(plot.data) == 0) {
-      warning(paste("No data to plot for covariate:", covar))
-      next
-    }
+      # Check if plot.data is empty
+      if (nrow(plot.data) == 0) {
+        warning(paste("No data to plot for covariate:", covar))
+        next
+      }
 
-    # Order the data by average slope in descending order
-    plot.data = plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>% 
-      ungroup() %>% 
-      arrange(desc(Avg.slope))
+      # Order the data by average slope in descending order
+      plot.data <- plot.data %>%
+        group_by(symbol) %>%
+        mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>%
+        ungroup() %>%
+        arrange(desc(Avg.slope))
 
-    # Create the dot plot using ggplot2
-    g = ggplot(plot.data, aes(Adjustment, symbol))
-    p = g +  
-      geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
-      
-      scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
-      scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
-      scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
-      theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
-      labs(title = covar) # Set plot title
+      # Create the dot plot using ggplot2
+      g <- ggplot(plot.data, aes(Adjustment, symbol))
+      p <- g +
+        geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
 
-    # Print the plot
-    print(p)
-    
+        scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
+        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
+        scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
+        labs(title = covar) # Set plot title
+
+      # Print the plot
+      print(p)
+
       # Save the plot to a PNG file
-  # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
-
-
-  }, error = function(e) {
-    # Handle any errors during plotting
-    message(paste("Error while plotting covariate:", covar, "-", e$message))
-  })
+      # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
+    },
+    error = function(e) {
+      # Handle any errors during plotting
+      message(paste("Error while plotting covariate:", covar, "-", e$message))
+    }
+  )
 }
 
 # Close the PDF device
@@ -323,57 +333,60 @@ dev.off()
 Adjusting for pval
 ```{r}
 # Plot the data for each covariate
-exclude_covars = grep("Deep_and_SC.", unique(merged.df$covariates), value = TRUE)
-covars = setdiff(unique(merged.df$covariates), exclude_covars)
+exclude_covars <- grep("Deep_and_SC.", unique(merged.df$covariates), value = TRUE)
+covars <- setdiff(unique(merged.df$covariates), exclude_covars)
 
 # Determine the range of -log10(FDR) values for setting axis limits
-min_FDR = min(-log10(merged.df$FDR), na.rm = TRUE)
-max_FDR = max(-log10(merged.df$FDR), na.rm = TRUE)
+min_FDR <- min(-log10(merged.df$FDR), na.rm = TRUE)
+max_FDR <- max(-log10(merged.df$FDR), na.rm = TRUE)
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_pval_0.05_summary_top.pdf", width = 12, height = 6)
 
 # Loop through each covariate and create a dot plot
-for(covar in covars) {
-  tryCatch({
-    # Filter merged.df to include only rows for the current covariate
-    plot.data = merged.df %>% filter(covariates == covar) %>% filter(pval <= 0.05)
+for (covar in covars) {
+  tryCatch(
+    {
+      # Filter merged.df to include only rows for the current covariate
+      plot.data <- merged.df %>%
+        filter(covariates == covar) %>%
+        filter(pval <= 0.05)
 
-    # Check if plot.data is empty
-    if(nrow(plot.data) == 0) {
-      warning(paste("No data to plot for covariate:", covar))
-      next
-    }
+      # Check if plot.data is empty
+      if (nrow(plot.data) == 0) {
+        warning(paste("No data to plot for covariate:", covar))
+        next
+      }
 
-    # Order the data by average slope in descending order
-    plot.data = plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>% 
-      ungroup() %>% 
-      arrange(desc(Avg.slope))
+      # Order the data by average slope in descending order
+      plot.data <- plot.data %>%
+        group_by(symbol) %>%
+        mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>%
+        ungroup() %>%
+        arrange(desc(Avg.slope))
 
-    # Create the dot plot using ggplot2
-    g = ggplot(plot.data, aes(Adjustment, symbol))
-    p = g +  
-      geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
-      
-      scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
-      scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
-      scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
-      theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
-      labs(title = covar) # Set plot title
+      # Create the dot plot using ggplot2
+      g <- ggplot(plot.data, aes(Adjustment, symbol))
+      p <- g +
+        geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
 
-    # Print the plot
-    print(p)
-    
+        scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
+        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
+        scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
+        labs(title = covar) # Set plot title
+
+      # Print the plot
+      print(p)
+
       # Save the plot to a PNG file
-  # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
-
-
-  }, error = function(e) {
-    # Handle any errors during plotting
-    message(paste("Error while plotting covariate:", covar, "-", e$message))
-  })
+      # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
+    },
+    error = function(e) {
+      # Handle any errors during plotting
+      message(paste("Error while plotting covariate:", covar, "-", e$message))
+    }
+  )
 }
 
 # Close the PDF device
@@ -383,176 +396,185 @@ dev.off()
 4) Check the thermogenic genes
 
 ```{r}
-kegg_thermo = c("ADRB3", "GNAS", "ADCY1", "ADCY2", "ADCY3", "ADCY4", "ADCY5", "ADCY6", "ADCY7", "ADCY8", "ADCY9", "ADCY10", "PRKACA", "PRKACB", "PRKACG", "CREB1", "CREB3", "CREB3L1", "CREB3L2", "CREB3L3", "CREB3L4", "CREB5", "PRDM16", "ZNF516", "KDM1A", "UCP1", "KDM3A", "KDM3B", "SMARCA2", "SMARCA4", "SMARCB1", "SMARCC1", "SMARCC2", "SMARCD1", "SMARCD2", "SMARCD3", "SMARCE1", "ACTG1", "ACTB", "ACTL6A", "ACTL6B", "ARID1B", "ARID1A", "DPF1", "DPF3", "PPARG", "MAP3K5", "MAP2K3", "MAPK11", "MAPK12", "MAPK13", "MAPK14", "PPARGC1A", "ATF2", "SIRT6", "FGF21", "PLIN1", "LIPE", "PNPLA2", "MGLL", "PRKAA1", "PRKAA2", "PRKAB1", "PRKAB2", "PRKAG1", "PRKAG3", "PRKAG2", "GCG", "BMP8B", "BMP8A", "CNR1", "NPPA", "NPPB", "NPR1", "PRKG1", "PRKG2", "KLB", "FGFR1", "FRS2", "GRB2", "SOS1", "SOS2", "HRAS", "KRAS", "NRAS", "RPS6KA3", "RPS6KA1", "RPS6KA2", "RPS6KA6", "TSC1", "TSC2", "RHEB", "RPTOR", "MTOR", "MLST8", "AKT1S1", "RPS6KB1", "RPS6KB2", "RPS6", "ACSL6", "ACSL4", "ACSL1", "ACSL5", "ACSL3", "ND1", "ND2", "ND3", "ND4", "ND4L", "ND5", "ND6", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS5", "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NDUFV3", "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA4L2", "NDUFA5", "NDUFA6", "NDUFA7", "NDUFA8", "NDUFA9", "NDUFA10", "NDUFAB1", "NDUFA11", "NDUFA12", "NDUFA13", "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7", "NDUFB8", "NDUFB9", "NDUFB10", "NDUFB11", "NDUFC1", "NDUFC2", "NDUFC2-KCTD14", "NDUFAF1", "NDUFAF2", "NDUFAF3", "NDUFAF4", "NDUFAF5", "NDUFAF6", "NDUFAF7", "NDUFAF8", "SDHA", "SDHB", "SDHC", "SDHD", "UQCRFS1", "CYTB", "CYC1", "UQCRC1", "UQCRC2", "UQCRH", "UQCRHL", "UQCRB", "UQCRQ", "UQCR10", "UQCR11", "COX1", "COX2", "COX3", "COX4I2", "COX4I1", "COX5A")
+kegg_thermo <- c("ADRB3", "GNAS", "ADCY1", "ADCY2", "ADCY3", "ADCY4", "ADCY5", "ADCY6", "ADCY7", "ADCY8", "ADCY9", "ADCY10", "PRKACA", "PRKACB", "PRKACG", "CREB1", "CREB3", "CREB3L1", "CREB3L2", "CREB3L3", "CREB3L4", "CREB5", "PRDM16", "ZNF516", "KDM1A", "UCP1", "KDM3A", "KDM3B", "SMARCA2", "SMARCA4", "SMARCB1", "SMARCC1", "SMARCC2", "SMARCD1", "SMARCD2", "SMARCD3", "SMARCE1", "ACTG1", "ACTB", "ACTL6A", "ACTL6B", "ARID1B", "ARID1A", "DPF1", "DPF3", "PPARG", "MAP3K5", "MAP2K3", "MAPK11", "MAPK12", "MAPK13", "MAPK14", "PPARGC1A", "ATF2", "SIRT6", "FGF21", "PLIN1", "LIPE", "PNPLA2", "MGLL", "PRKAA1", "PRKAA2", "PRKAB1", "PRKAB2", "PRKAG1", "PRKAG3", "PRKAG2", "GCG", "BMP8B", "BMP8A", "CNR1", "NPPA", "NPPB", "NPR1", "PRKG1", "PRKG2", "KLB", "FGFR1", "FRS2", "GRB2", "SOS1", "SOS2", "HRAS", "KRAS", "NRAS", "RPS6KA3", "RPS6KA1", "RPS6KA2", "RPS6KA6", "TSC1", "TSC2", "RHEB", "RPTOR", "MTOR", "MLST8", "AKT1S1", "RPS6KB1", "RPS6KB2", "RPS6", "ACSL6", "ACSL4", "ACSL1", "ACSL5", "ACSL3", "ND1", "ND2", "ND3", "ND4", "ND4L", "ND5", "ND6", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS5", "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NDUFV3", "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA4L2", "NDUFA5", "NDUFA6", "NDUFA7", "NDUFA8", "NDUFA9", "NDUFA10", "NDUFAB1", "NDUFA11", "NDUFA12", "NDUFA13", "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7", "NDUFB8", "NDUFB9", "NDUFB10", "NDUFB11", "NDUFC1", "NDUFC2", "NDUFC2-KCTD14", "NDUFAF1", "NDUFAF2", "NDUFAF3", "NDUFAF4", "NDUFAF5", "NDUFAF6", "NDUFAF7", "NDUFAF8", "SDHA", "SDHB", "SDHC", "SDHD", "UQCRFS1", "CYTB", "CYC1", "UQCRC1", "UQCRC2", "UQCRH", "UQCRHL", "UQCRB", "UQCRQ", "UQCR10", "UQCR11", "COX1", "COX2", "COX3", "COX4I2", "COX4I1", "COX5A")
 
 # Plot the data for each covariate
-exclude_covars = grep("Deep_and_SC.",unique(merged.df$covariates), value = T)
-covars = setdiff(unique(merged.df$covariates), exclude_covars)
+exclude_covars <- grep("Deep_and_SC.", unique(merged.df$covariates), value = T)
+covars <- setdiff(unique(merged.df$covariates), exclude_covars)
 
 # Determine the range of -log10(FDR) values for setting axis limits
-fdr_range = c(min(-log10(merged.df$FDR), na.rm = TRUE), max(-log10(merged.df$FDR), na.rm = TRUE))
+fdr_range <- c(min(-log10(merged.df$FDR), na.rm = TRUE), max(-log10(merged.df$FDR), na.rm = TRUE))
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_summary_kegg_thermo.pdf", width = 12, height = 6)
 
 # Loop through each covariate and create a dot plot
-for(covar in covars){
-  tryCatch({
-    # Filter merged.df to include only rows for the current covariate and symbols in kegg_thermo
-    plot.data <- merged.df %>% filter(covariates == covar, symbol %in% kegg_thermo) %>% filter(FDR <= 0.15)
-    
-    # Check if the filtered data is empty
-    if(nrow(plot.data) == 0) {
-      message(paste("No data available for covariate:", covar))
-      next
+for (covar in covars) {
+  tryCatch(
+    {
+      # Filter merged.df to include only rows for the current covariate and symbols in kegg_thermo
+      plot.data <- merged.df %>%
+        filter(covariates == covar, symbol %in% kegg_thermo) %>%
+        filter(FDR <= 0.15)
+
+      # Check if the filtered data is empty
+      if (nrow(plot.data) == 0) {
+        message(paste("No data available for covariate:", covar))
+        next
+      }
+
+      # Order the data by average slope in descending order
+      plot.data <- plot.data %>%
+        group_by(symbol) %>%
+        mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>%
+        ungroup() %>%
+        arrange(desc(Avg.slope))
+
+      # Create the dot plot using ggplot2
+      g <- ggplot(plot.data, aes(Adjustment, symbol)) +
+        geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
+        scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
+        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
+        scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
+        labs(title = covar) # Set plot title
+
+      # Print the plot
+      print(g)
+
+      # Save the plot to a PNG file
+      # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = g, units = "in", dpi = 300)
+    },
+    error = function(e) {
+      message(paste("Error processing covariate:", covar, ":", e$message))
     }
-
-    # Order the data by average slope in descending order
-    plot.data <- plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>% 
-      ungroup() %>% 
-      arrange(desc(Avg.slope))
-
-    # Create the dot plot using ggplot2
-    g <- ggplot(plot.data, aes(Adjustment, symbol)) +
-      geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
-      
-      scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
-      scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
-      scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
-      theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
-      labs(title = covar) # Set plot title
-
-    # Print the plot
-    print(g)
-
-    # Save the plot to a PNG file
-    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = g, units = "in", dpi = 300)
-    
-  }, error = function(e) {
-    message(paste("Error processing covariate:", covar, ":", e$message))
-  })
+  )
 }
 
 # Close the PDF device
 dev.off()
-
 ```
 5) Check paper mentioned genes
 ```{r}
-mentioned_genes = c("BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "HLA", "HCP5", "CR2", "CMIP", "BACH2", "BMI", "NES", "PPARG", "PPARGC1A", "FT4", "ADIPOQ", "GLP1R", "CKMT1A", "CKMT1B", "CKMT2AS1", "TFG", "TLR", "THRA", "THRB", "SLC16A2", "SLC16A10", "TRHA", "TSSR", "TURBO", "MA", "DNA", "HMR", "MD", "CI", "R2", "KO", "SNS", "NE", "AG", "AS", "CM", "CMT", "JCI", "SD", "M305235200", "MK", "MP", "MO", "AL", "AW", "FASEB", "E438", "E446", "NZ", "YY", "GA", "AC", "AL", "WS",
-                    #Round 2 of GPT
-"BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "BIDMC", "HILIC", "BEH", "NH2", "HPLC", "Q1", "Q3", "MRM", "QTRAP", "AB", "SCIEX", "SRM", "OR", "THRA", "THRB", "MCT8", "MCT10", "SLC16A2", "TRHA", "SLC16A10", "PPARG", "CKMT1A", "CKMT2AS1", "RNA1", "FT4", "ADIPOQ", "TURBO", "MA", "DNA", "HMR", "MD", "PCR", "KAPA", "PE", "STAR", "BAM", "GO", "PCA", "2D", "FDR", "CI", "UCP", "KO", "NE", "SNS", "YH", "AG", "MJ", "NJ", "JE", "LA", "SD", "MO", "DP", "SM", "HC", "FASEB", "AM", "AP", "NZ", "LM", "CM", "PO", "YY", "GA", "AC", "AL", "WS", "MK", "HM", "MP", "AW", "JJ", "JM", "MTND5P10")
+mentioned_genes <- c(
+  "BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "HLA", "HCP5", "CR2", "CMIP", "BACH2", "BMI", "NES", "PPARG", "PPARGC1A", "FT4", "ADIPOQ", "GLP1R", "CKMT1A", "CKMT1B", "CKMT2AS1", "TFG", "TLR", "THRA", "THRB", "SLC16A2", "SLC16A10", "TRHA", "TSSR", "TURBO", "MA", "DNA", "HMR", "MD", "CI", "R2", "KO", "SNS", "NE", "AG", "AS", "CM", "CMT", "JCI", "SD", "M305235200", "MK", "MP", "MO", "AL", "AW", "FASEB", "E438", "E446", "NZ", "YY", "GA", "AC", "AL", "WS",
+  # Round 2 of GPT
+  "BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "BIDMC", "HILIC", "BEH", "NH2", "HPLC", "Q1", "Q3", "MRM", "QTRAP", "AB", "SCIEX", "SRM", "OR", "THRA", "THRB", "MCT8", "MCT10", "SLC16A2", "TRHA", "SLC16A10", "PPARG", "CKMT1A", "CKMT2AS1", "RNA1", "FT4", "ADIPOQ", "TURBO", "MA", "DNA", "HMR", "MD", "PCR", "KAPA", "PE", "STAR", "BAM", "GO", "PCA", "2D", "FDR", "CI", "UCP", "KO", "NE", "SNS", "YH", "AG", "MJ", "NJ", "JE", "LA", "SD", "MO", "DP", "SM", "HC", "FASEB", "AM", "AP", "NZ", "LM", "CM", "PO", "YY", "GA", "AC", "AL", "WS", "MK", "HM", "MP", "AW", "JJ", "JM", "MTND5P10"
+)
 
 # Plot the data for each covariate
-exclude_covars = grep("Deep_and_SC.",unique(merged.df$covariates), value = T)
-covars = setdiff(unique(merged.df$covariates), exclude_covars)
+exclude_covars <- grep("Deep_and_SC.", unique(merged.df$covariates), value = T)
+covars <- setdiff(unique(merged.df$covariates), exclude_covars)
 
 
 # Determine the range of -log10(FDR) values for setting axis limits
-fdr_range = c(min(-log10(merged.df$FDR), na.rm = TRUE), max(-log10(merged.df$FDR), na.rm = TRUE))
+fdr_range <- c(min(-log10(merged.df$FDR), na.rm = TRUE), max(-log10(merged.df$FDR), na.rm = TRUE))
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_fdr_0.15_summary_mentioned_genes.pdf", width = 12, height = 6)
 
 # Loop through each covariate and create a dot plot
-for(covar in covars){
-  tryCatch({
-    # Filter merged.df to include only rows for the current covariate and symbols in mentioned_genes
-    plot.data <- merged.df %>% filter(covariates == covar, symbol %in% mentioned_genes) %>% filter(FDR <= 0.15)
-    
-    # Check if the filtered data is empty
-    if(nrow(plot.data) == 0) {
-      message(paste("No data available for covariate:", covar))
-      next
+for (covar in covars) {
+  tryCatch(
+    {
+      # Filter merged.df to include only rows for the current covariate and symbols in mentioned_genes
+      plot.data <- merged.df %>%
+        filter(covariates == covar, symbol %in% mentioned_genes) %>%
+        filter(FDR <= 0.15)
+
+      # Check if the filtered data is empty
+      if (nrow(plot.data) == 0) {
+        message(paste("No data available for covariate:", covar))
+        next
+      }
+
+      # Order the data by average slope in descending order
+      plot.data <- plot.data %>%
+        group_by(symbol) %>%
+        mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>%
+        ungroup() %>%
+        arrange(desc(Avg.slope))
+
+      # Create the dot plot using ggplot2
+      g <- ggplot(plot.data, aes(Adjustment, symbol)) +
+        geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
+        scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
+        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
+        scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
+        labs(title = covar) # Set plot title
+
+      # Print the plot
+      print(g)
+
+      # Save the plot to a PNG file
+      # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = g, units = "in", dpi = 300)
+    },
+    error = function(e) {
+      message(paste("Error processing covariate:", covar, ":", e$message))
     }
-
-    # Order the data by average slope in descending order
-    plot.data <- plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>% 
-      ungroup() %>% 
-      arrange(desc(Avg.slope))
-
-    # Create the dot plot using ggplot2
-    g <- ggplot(plot.data, aes(Adjustment, symbol)) +
-      geom_count(aes(size = -log10(FDR), fill = slope), shape = 21, color = "black", stroke = 0.5) +
-      
-      scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
-      scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
-      scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
-      theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
-      labs(title = covar) # Set plot title
-
-    # Print the plot
-    print(g)
-
-    # Save the plot to a PNG file
-    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = g, units = "in", dpi = 300)
-    
-  }, error = function(e) {
-    message(paste("Error processing covariate:", covar, ":", e$message))
-  })
+  )
 }
 
 # Close the PDF device
 dev.off()
-
 ```
 6) Plot by P-value
 ```{r}
 # Plot the data for each covariate
-exclude_covars = grep("Deep_and_SC.",unique(merged.df$covariates), value = T)
-covars = setdiff(unique(merged.df$covariates), exclude_covars)
+exclude_covars <- grep("Deep_and_SC.", unique(merged.df$covariates), value = T)
+covars <- setdiff(unique(merged.df$covariates), exclude_covars)
 
 # Determine the range of -log10(FDR) values for setting axis limits
-pval_range = c(min(-log10(merged.df$pval), na.rm = TRUE), max(-log10(merged.df$pval), na.rm = TRUE))
+pval_range <- c(min(-log10(merged.df$pval), na.rm = TRUE), max(-log10(merged.df$pval), na.rm = TRUE))
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_pval_summary_mentioned_genes.pdf", width = 12, height = 6)
 
 # Loop through each covariate and create a dot plot
-for(covar in covars){
-  tryCatch({
-    # Filter merged.df to include only rows for the current covariate and symbols in mentioned_genes
-    plot.data <- merged.df %>% filter(covariates == covar, symbol %in% mentioned_genes, pval < 0.05) %>% mutate(Tissue = case_when(
-      grepl("^SC", covariates) ~ "SubQ",
-      grepl("^Deep", covariates) ~ "Deep",
-      ))
+for (covar in covars) {
+  tryCatch(
+    {
+      # Filter merged.df to include only rows for the current covariate and symbols in mentioned_genes
+      plot.data <- merged.df %>%
+        filter(covariates == covar, symbol %in% mentioned_genes, pval < 0.05) %>%
+        mutate(Tissue = case_when(
+          grepl("^SC", covariates) ~ "SubQ",
+          grepl("^Deep", covariates) ~ "Deep",
+        ))
 
-    # Check if the filtered data is empty
-    if(nrow(plot.data) == 0) {
-      message(paste("No data available for covariate:", covar))
-      next
+      # Check if the filtered data is empty
+      if (nrow(plot.data) == 0) {
+        message(paste("No data available for covariate:", covar))
+        next
+      }
+
+      # Order the data by average slope in descending order
+      plot.data <- plot.data %>%
+        group_by(symbol) %>%
+        mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>%
+        ungroup() %>%
+        arrange(desc(Avg.slope))
+
+      # Create the dot plot using ggplot2
+      g <- ggplot(plot.data, aes(Adjustment, symbol)) +
+        geom_count(aes(size = -log10(pval), fill = slope), shape = 21, color = "black", stroke = 0.5) +
+        scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
+        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
+        scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
+        labs(title = covar) # Set plot title
+
+      # Print the plot
+      print(g)
+
+      # Save the plot to a PNG file
+      # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = g, units = "in", dpi = 300)
+    },
+    error = function(e) {
+      message(paste("Error processing covariate:", covar, ":", e$message))
     }
-
-    # Order the data by average slope in descending order
-    plot.data <- plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.slope = mean(slope, na.rm = TRUE)) %>% 
-      ungroup() %>% 
-      arrange(desc(Avg.slope))
-
-    # Create the dot plot using ggplot2
-    g <- ggplot(plot.data, aes(Adjustment, symbol)) +
-      geom_count(aes(size = -log10(pval), fill = slope), shape = 21, color = "black", stroke = 0.5) +
-      
-      scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
-      scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
-      scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
-      theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # Rotate x-axis labels
-      labs(title = covar) # Set plot title
-
-    # Print the plot
-    print(g)
-
-    # Save the plot to a PNG file
-    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = g, units = "in", dpi = 300)
-    
-  }, error = function(e) {
-    message(paste("Error processing covariate:", covar, ":", e$message))
-  })
+  )
 }
 
 # Close the PDF device
@@ -560,54 +582,53 @@ dev.off()
 ```
 # HypoHyper DEG analysis
 ```{r}
-new_list = path_list
+new_list <- path_list
 # Iterate over each adjustment method specified in path_list
-for(adjust in "HypoHyper"){ #HypoHyper is the only one with DEG
+for (adjust in "HypoHyper") { # HypoHyper is the only one with DEG
   print(adjust)
   # Special handling for the "BMI_temp" adjustment method
-  if(adjust == "BMI_temp"){
-    new_list[[adjust]] = new_list[[adjust]] %>% 
+  if (adjust == "BMI_temp") {
+    new_list[[adjust]] <- new_list[[adjust]] %>%
       dplyr::select(Cluster, Description, NES, p.adjust, Adjustment) %>% # Select columns of interest
       dplyr::group_by(Cluster) %>% # Group data by Cluster
       dplyr::arrange(p.adjust) %>% # Arrange rows by p.adjust in ascending order
       slice_head(n = 5) # Select the top 5 rows for each cluster
   } else {
-  
     # Prepare datasets for merging based on the current adjustment method
     # Extract correlation variable names from the dataset and remove the '.slope' suffix
-    cor_variables = names(new_list[[adjust]])[grepl(".slope$", names(new_list[[adjust]]))]
-    cor_variables = gsub(".slope$", "", cor_variables)
+    cor_variables <- names(new_list[[adjust]])[grepl(".slope$", names(new_list[[adjust]]))]
+    cor_variables <- gsub(".slope$", "", cor_variables)
     cor_variables
 
     # Extract differential expression variable names from the dataset and remove the '.logFC' suffix
-    deg_variables = names(new_list[[adjust]])[grepl(".logFC$", names(new_list[[adjust]]))]
-    deg_variables = gsub(".logFC$", "", deg_variables)
+    deg_variables <- names(new_list[[adjust]])[grepl(".logFC$", names(new_list[[adjust]]))]
+    deg_variables <- gsub(".logFC$", "", deg_variables)
     deg_variables
 
     # Identify columns related to correlation variables by matching against the cleaned names
-    cor_cols = names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% cor_variables]
+    cor_cols <- names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% cor_variables]
     # Identify columns related to differential expression variables by matching against the cleaned names
-    deg_cols = names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% deg_variables]
+    deg_cols <- names(new_list[[adjust]])[sub("\\.[^\\.]*$", "", names(new_list[[adjust]])) %in% deg_variables]
 
     # Identify columns related to p-values, FDR, and slopes
-    p_cols = grep("\\.p", names(new_list[[adjust]]), value = T)
-    FDR_cols = grep("\\.FDR", names(new_list[[adjust]]), value = T)
-    FC_cols = grep("\\.logFC", names(new_list[[adjust]]), value = T)
+    p_cols <- grep("\\.p", names(new_list[[adjust]]), value = T)
+    FDR_cols <- grep("\\.FDR", names(new_list[[adjust]]), value = T)
+    FC_cols <- grep("\\.logFC", names(new_list[[adjust]]), value = T)
 
     # Reshape the dataset from wide to long format, excluding correlation columns
-    long_df = new_list[[adjust]] %>% 
-      dplyr::select(-cor_cols) %>% 
+    long_df <- new_list[[adjust]] %>%
+      dplyr::select(-cor_cols) %>%
       pivot_longer(cols = deg_cols)
 
     # Create logical vectors to identify rows related to FDR and slope
-    fdrs = grepl("FDR", long_df$name)
-    logfc = grepl("logFC", long_df$name)
-    pval = grepl("\\.p", long_df$name)
+    fdrs <- grepl("FDR", long_df$name)
+    logfc <- grepl("logFC", long_df$name)
+    pval <- grepl("\\.p", long_df$name)
 
     # Process FDR data: filter, clean, and format the data
-    fdr_df = long_df %>% 
-      filter(fdrs) %>% 
-      dplyr::select(symbol, name, value) %>% 
+    fdr_df <- long_df %>%
+      filter(fdrs) %>%
+      dplyr::select(symbol, name, value) %>%
       mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
       distinct(symbol, name, .keep_all = T) %>% # Remove duplicate rows
       mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
@@ -615,50 +636,52 @@ for(adjust in "HypoHyper"){ #HypoHyper is the only one with DEG
       dplyr::select(symbol, covariates, FDR)
 
     # Process slope data: filter, clean, and format the data
-    logfc_df = long_df %>% 
-      filter(logfc) %>% 
-      dplyr::select(symbol, name, value) %>% 
+    logfc_df <- long_df %>%
+      filter(logfc) %>%
+      dplyr::select(symbol, name, value) %>%
       mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
       distinct(symbol, name, .keep_all = T) %>% # Remove duplicate rows
       mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
       dplyr::rename("logfc" = "value") # Rename 'value' to 'logfc'
-    
+
     # Process pval data
     # Filter long_df to keep only rows related to pval
-    pval_df = long_df %>%
-      filter(pval) %>% 
-      dplyr::select(symbol, name, value) %>% 
-      mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>%  # Extract covariates from the name
-      distinct(symbol, name, .keep_all = T) %>%  # Remove duplicates
-      mutate("match_col" = paste(symbol, covariates)) %>%  # Create a match column combining symbol and covariates
-      dplyr::rename("pval" = "value")  # Rename 'value' to 'slope'
-    
+    pval_df <- long_df %>%
+      filter(pval) %>%
+      dplyr::select(symbol, name, value) %>%
+      mutate("covariates" = sub("\\.[^\\.]*$", "", name)) %>% # Extract covariates from the name
+      distinct(symbol, name, .keep_all = T) %>% # Remove duplicates
+      mutate("match_col" = paste(symbol, covariates)) %>% # Create a match column combining symbol and covariates
+      dplyr::rename("pval" = "value") # Rename 'value' to 'slope'
+
     head(final_df)
 
     # Combine FDR and slope data into a final data frame
-    final_df = logfc_df %>% 
-      dplyr::select(logfc) %>% 
+    final_df <- logfc_df %>%
+      dplyr::select(logfc) %>%
       cbind(fdr_df)
-    final_df = pval_df %>% dplyr::select(pval) %>% cbind(final_df)
+    final_df <- pval_df %>%
+      dplyr::select(pval) %>%
+      cbind(final_df)
 
 
     # Filter final_df to include only rows where FDR is the minimum within each covariate group and FDR is less than or equal to 0.15
-    final_df = final_df %>% 
-      group_by(covariates) %>% 
+    final_df <- final_df %>%
+      group_by(covariates) %>%
       # filter(FDR == min(FDR)) %>% #Comment this on if you want to keep all genes with FDR <0.15
       # filter(FDR <= 0.15) %>% #Comment this on if you want to keep all genes
       ungroup()
 
     # Create a column to store the origin of the adjustment method
-    final_df$Adjustment = adjust
+    final_df$Adjustment <- adjust
 
     # Update the new_list with the processed data for the current adjustment method
-    new_list[[adjust]] = final_df
+    new_list[[adjust]] <- final_df
   }
 }
 
 # Combine all data frames in new_list into a single data frame
-merged.df = new_list[["HypoHyper"]]
+merged.df <- new_list[["HypoHyper"]]
 
 # Optionally, remove trailing underscores from Description column if needed
 # merged.df$Description <- sub("_+$", "", merged.df$Description)
@@ -670,26 +693,30 @@ Adjusting for FDR
 ```{r}
 # Save the plot to a PDF file
 pdf("./figures/DGE_HyperHypo_FDR_0.15_summary_top.pdf", width = 12, height = 6)
-plot.data = merged.df %>% filter(FDR <= 0.15) %>% mutate(Tissue = case_when(
-                                                                                                  grepl("SC", covariates) ~ "SubQ",
-                                                                                                  grepl("Deep", covariates) ~ "Deep"))
-  tryCatch({
-     # Check if plot.data is empty
-    if(nrow(plot.data) == 0) {
+plot.data <- merged.df %>%
+  filter(FDR <= 0.15) %>%
+  mutate(Tissue = case_when(
+    grepl("SC", covariates) ~ "SubQ",
+    grepl("Deep", covariates) ~ "Deep"
+  ))
+tryCatch(
+  {
+    # Check if plot.data is empty
+    if (nrow(plot.data) == 0) {
       warning(paste("No data to plot for covariate:", covar))
       next
     }
 
     # Order the data by average slope in descending order
-    plot.data = plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>% 
-      ungroup() %>% 
+    plot.data <- plot.data %>%
+      group_by(symbol) %>%
+      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>%
+      ungroup() %>%
       arrange(desc(Avg.FC))
 
     # Create the dot plot using ggplot2
-    g = ggplot(plot.data, aes(Tissue, symbol))
-    p = g +  
+    g <- ggplot(plot.data, aes(Tissue, symbol))
+    p <- g +
       geom_count(aes(size = -log10(FDR), fill = logfc), shape = 21, color = "black", stroke = 0.5) +
       scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
@@ -699,47 +726,50 @@ plot.data = merged.df %>% filter(FDR <= 0.15) %>% mutate(Tissue = case_when(
 
     # Print the plot
     print(p)
-    
-      # Save the plot to a PNG file
-  # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
 
-
-  }, error = function(e) {
+    # Save the plot to a PNG file
+    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
+  },
+  error = function(e) {
     # Handle any errors during plotting
     message(paste("Error while plotting covariate:", covar, "-", e$message))
-  })
+  }
+)
 
 
 # Close the PDF device
 dev.off()
-
 ```
 Adjusting for pval
 ```{r}
 # Save the plot to a PDF file
 pdf("./figures/DGE_HyperHypo_pval_0.05_summary_top.pdf", width = 12, height = 6)
-plot.data = merged.df %>% filter(pval <= 0.05) %>% mutate(Tissue = case_when(
-                                                                                                  grepl("SC", covariates) ~ "SubQ",
-                                                                                                  grepl("Deep", covariates) ~ "Deep"))
-  tryCatch({
-     # Check if plot.data is empty
-    if(nrow(plot.data) == 0) {
+plot.data <- merged.df %>%
+  filter(pval <= 0.05) %>%
+  mutate(Tissue = case_when(
+    grepl("SC", covariates) ~ "SubQ",
+    grepl("Deep", covariates) ~ "Deep"
+  ))
+tryCatch(
+  {
+    # Check if plot.data is empty
+    if (nrow(plot.data) == 0) {
       warning(paste("No data to plot for covariate:", covar))
       next
     }
 
     # Order the data by average slope in descending order
-    plot.data = plot.data %>% 
-      group_by(symbol) %>% 
-      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>% 
-      ungroup() %>% 
+    plot.data <- plot.data %>%
+      group_by(symbol) %>%
+      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>%
+      ungroup() %>%
       arrange(desc(Avg.FC))
 
     # Create the dot plot using ggplot2
-    g = ggplot(plot.data, aes(Tissue, symbol))
-    p = g +  
+    g <- ggplot(plot.data, aes(Tissue, symbol))
+    p <- g +
       geom_count(aes(size = -log10(pval), fill = logfc), shape = 21, color = "black", stroke = 0.5) +
-      
+
       scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
       scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
@@ -748,15 +778,15 @@ plot.data = merged.df %>% filter(pval <= 0.05) %>% mutate(Tissue = case_when(
 
     # Print the plot
     print(p)
-    
-      # Save the plot to a PNG file
-  # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
 
-
-  }, error = function(e) {
+    # Save the plot to a PNG file
+    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
+  },
+  error = function(e) {
     # Handle any errors during plotting
     message(paste("Error while plotting covariate:", covar, "-", e$message))
-  })
+  }
+)
 
 
 # Close the PDF device
@@ -766,34 +796,38 @@ dev.off()
 4) Check the thermogenic genes
 
 ```{r}
-kegg_thermo = c("ADRB3", "GNAS", "ADCY1", "ADCY2", "ADCY3", "ADCY4", "ADCY5", "ADCY6", "ADCY7", "ADCY8", "ADCY9", "ADCY10", "PRKACA", "PRKACB", "PRKACG", "CREB1", "CREB3", "CREB3L1", "CREB3L2", "CREB3L3", "CREB3L4", "CREB5", "PRDM16", "ZNF516", "KDM1A", "UCP1", "KDM3A", "KDM3B", "SMARCA2", "SMARCA4", "SMARCB1", "SMARCC1", "SMARCC2", "SMARCD1", "SMARCD2", "SMARCD3", "SMARCE1", "ACTG1", "ACTB", "ACTL6A", "ACTL6B", "ARID1B", "ARID1A", "DPF1", "DPF3", "PPARG", "MAP3K5", "MAP2K3", "MAPK11", "MAPK12", "MAPK13", "MAPK14", "PPARGC1A", "ATF2", "SIRT6", "FGF21", "PLIN1", "LIPE", "PNPLA2", "MGLL", "PRKAA1", "PRKAA2", "PRKAB1", "PRKAB2", "PRKAG1", "PRKAG3", "PRKAG2", "GCG", "BMP8B", "BMP8A", "CNR1", "NPPA", "NPPB", "NPR1", "PRKG1", "PRKG2", "KLB", "FGFR1", "FRS2", "GRB2", "SOS1", "SOS2", "HRAS", "KRAS", "NRAS", "RPS6KA3", "RPS6KA1", "RPS6KA2", "RPS6KA6", "TSC1", "TSC2", "RHEB", "RPTOR", "MTOR", "MLST8", "AKT1S1", "RPS6KB1", "RPS6KB2", "RPS6", "ACSL6", "ACSL4", "ACSL1", "ACSL5", "ACSL3", "ND1", "ND2", "ND3", "ND4", "ND4L", "ND5", "ND6", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS5", "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NDUFV3", "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA4L2", "NDUFA5", "NDUFA6", "NDUFA7", "NDUFA8", "NDUFA9", "NDUFA10", "NDUFAB1", "NDUFA11", "NDUFA12", "NDUFA13", "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7", "NDUFB8", "NDUFB9", "NDUFB10", "NDUFB11", "NDUFC1", "NDUFC2", "NDUFC2-KCTD14", "NDUFAF1", "NDUFAF2", "NDUFAF3", "NDUFAF4", "NDUFAF5", "NDUFAF6", "NDUFAF7", "NDUFAF8", "SDHA", "SDHB", "SDHC", "SDHD", "UQCRFS1", "CYTB", "CYC1", "UQCRC1", "UQCRC2", "UQCRH", "UQCRHL", "UQCRB", "UQCRQ", "UQCR10", "UQCR11", "COX1", "COX2", "COX3", "COX4I2", "COX4I1", "COX5A")
+kegg_thermo <- c("ADRB3", "GNAS", "ADCY1", "ADCY2", "ADCY3", "ADCY4", "ADCY5", "ADCY6", "ADCY7", "ADCY8", "ADCY9", "ADCY10", "PRKACA", "PRKACB", "PRKACG", "CREB1", "CREB3", "CREB3L1", "CREB3L2", "CREB3L3", "CREB3L4", "CREB5", "PRDM16", "ZNF516", "KDM1A", "UCP1", "KDM3A", "KDM3B", "SMARCA2", "SMARCA4", "SMARCB1", "SMARCC1", "SMARCC2", "SMARCD1", "SMARCD2", "SMARCD3", "SMARCE1", "ACTG1", "ACTB", "ACTL6A", "ACTL6B", "ARID1B", "ARID1A", "DPF1", "DPF3", "PPARG", "MAP3K5", "MAP2K3", "MAPK11", "MAPK12", "MAPK13", "MAPK14", "PPARGC1A", "ATF2", "SIRT6", "FGF21", "PLIN1", "LIPE", "PNPLA2", "MGLL", "PRKAA1", "PRKAA2", "PRKAB1", "PRKAB2", "PRKAG1", "PRKAG3", "PRKAG2", "GCG", "BMP8B", "BMP8A", "CNR1", "NPPA", "NPPB", "NPR1", "PRKG1", "PRKG2", "KLB", "FGFR1", "FRS2", "GRB2", "SOS1", "SOS2", "HRAS", "KRAS", "NRAS", "RPS6KA3", "RPS6KA1", "RPS6KA2", "RPS6KA6", "TSC1", "TSC2", "RHEB", "RPTOR", "MTOR", "MLST8", "AKT1S1", "RPS6KB1", "RPS6KB2", "RPS6", "ACSL6", "ACSL4", "ACSL1", "ACSL5", "ACSL3", "ND1", "ND2", "ND3", "ND4", "ND4L", "ND5", "ND6", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS5", "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NDUFV3", "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA4L2", "NDUFA5", "NDUFA6", "NDUFA7", "NDUFA8", "NDUFA9", "NDUFA10", "NDUFAB1", "NDUFA11", "NDUFA12", "NDUFA13", "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7", "NDUFB8", "NDUFB9", "NDUFB10", "NDUFB11", "NDUFC1", "NDUFC2", "NDUFC2-KCTD14", "NDUFAF1", "NDUFAF2", "NDUFAF3", "NDUFAF4", "NDUFAF5", "NDUFAF6", "NDUFAF7", "NDUFAF8", "SDHA", "SDHB", "SDHC", "SDHD", "UQCRFS1", "CYTB", "CYC1", "UQCRC1", "UQCRC2", "UQCRH", "UQCRHL", "UQCRB", "UQCRQ", "UQCR10", "UQCR11", "COX1", "COX2", "COX3", "COX4I2", "COX4I1", "COX5A")
 
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_HyperHypo_pval_0.05_kegg_thermo.pdf", width = 12, height = 6)
-plot.data = merged.df %>% filter(pval <= 0.05) %>% mutate(Tissue = case_when(
-                                                                                                  grepl("SC", covariates) ~ "SubQ",
-                                                                                                  grepl("Deep", covariates) ~ "Deep"))
-  tryCatch({
-     # Check if plot.data is empty
-    if(nrow(plot.data) == 0) {
+plot.data <- merged.df %>%
+  filter(pval <= 0.05) %>%
+  mutate(Tissue = case_when(
+    grepl("SC", covariates) ~ "SubQ",
+    grepl("Deep", covariates) ~ "Deep"
+  ))
+tryCatch(
+  {
+    # Check if plot.data is empty
+    if (nrow(plot.data) == 0) {
       warning(paste("No data to plot for covariate:", covar))
       next
     }
 
     # Order the data by average slope in descending order
-    plot.data = plot.data %>% 
+    plot.data <- plot.data %>%
       filter(symbol %in% kegg_thermo) %>%
-      group_by(symbol) %>% 
-      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>% 
-      ungroup() %>% 
+      group_by(symbol) %>%
+      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>%
+      ungroup() %>%
       arrange(desc(Avg.FC))
 
     # Create the dot plot using ggplot2
-    g = ggplot(plot.data, aes(Tissue, symbol))
-    p = g +  
+    g <- ggplot(plot.data, aes(Tissue, symbol))
+    p <- g +
       geom_count(aes(size = -log10(pval), fill = logfc), shape = 21, color = "black", stroke = 0.5) +
-      
+
       scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
       scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
@@ -802,15 +836,15 @@ plot.data = merged.df %>% filter(pval <= 0.05) %>% mutate(Tissue = case_when(
 
     # Print the plot
     print(p)
-    
-      # Save the plot to a PNG file
-  # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
 
-
-  }, error = function(e) {
+    # Save the plot to a PNG file
+    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
+  },
+  error = function(e) {
     # Handle any errors during plotting
     message(paste("Error while plotting covariate:", covar, "-", e$message))
-  })
+  }
+)
 
 
 # Close the PDF device
@@ -818,35 +852,41 @@ dev.off()
 ```
 5) Check paper mentioned genes
 ```{r}
-mentioned_genes = c("BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "HLA", "HCP5", "CR2", "CMIP", "BACH2", "BMI", "NES", "PPARG", "PPARGC1A", "FT4", "ADIPOQ", "GLP1R", "CKMT1A", "CKMT1B", "CKMT2AS1", "TFG", "TLR", "THRA", "THRB", "SLC16A2", "SLC16A10", "TRHA", "TSSR", "TURBO", "MA", "DNA", "HMR", "MD", "CI", "R2", "KO", "SNS", "NE", "AG", "AS", "CM", "CMT", "JCI", "SD", "M305235200", "MK", "MP", "MO", "AL", "AW", "FASEB", "E438", "E446", "NZ", "YY", "GA", "AC", "AL", "WS",
-                    #Round 2 of GPT
-"BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "BIDMC", "HILIC", "BEH", "NH2", "HPLC", "Q1", "Q3", "MRM", "QTRAP", "AB", "SCIEX", "SRM", "OR", "THRA", "THRB", "MCT8", "MCT10", "SLC16A2", "TRHA", "SLC16A10", "PPARG", "CKMT1A", "CKMT2AS1", "RNA1", "FT4", "ADIPOQ", "TURBO", "MA", "DNA", "HMR", "MD", "PCR", "KAPA", "PE", "STAR", "BAM", "GO", "PCA", "2D", "FDR", "CI", "UCP", "KO", "NE", "SNS", "YH", "AG", "MJ", "NJ", "JE", "LA", "SD", "MO", "DP", "SM", "HC", "FASEB", "AM", "AP", "NZ", "LM", "CM", "PO", "YY", "GA", "AC", "AL", "WS", "MK", "HM", "MP", "AW", "JJ", "JM", "MTND5P10")
+mentioned_genes <- c(
+  "BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "HLA", "HCP5", "CR2", "CMIP", "BACH2", "BMI", "NES", "PPARG", "PPARGC1A", "FT4", "ADIPOQ", "GLP1R", "CKMT1A", "CKMT1B", "CKMT2AS1", "TFG", "TLR", "THRA", "THRB", "SLC16A2", "SLC16A10", "TRHA", "TSSR", "TURBO", "MA", "DNA", "HMR", "MD", "CI", "R2", "KO", "SNS", "NE", "AG", "AS", "CM", "CMT", "JCI", "SD", "M305235200", "MK", "MP", "MO", "AL", "AW", "FASEB", "E438", "E446", "NZ", "YY", "GA", "AC", "AL", "WS",
+  # Round 2 of GPT
+  "BAT", "TH", "TSH", "RNA", "WAT", "T3", "T4", "LC", "MS", "LEPR", "PR", "PRDM16", "UCP1", "ADRB3", "SC", "DIO2", "DIO1", "DIO3", "EBF2", "PLIN1", "PLIN4", "AGPAT1", "NADH", "GSTM1", "BIDMC", "HILIC", "BEH", "NH2", "HPLC", "Q1", "Q3", "MRM", "QTRAP", "AB", "SCIEX", "SRM", "OR", "THRA", "THRB", "MCT8", "MCT10", "SLC16A2", "TRHA", "SLC16A10", "PPARG", "CKMT1A", "CKMT2AS1", "RNA1", "FT4", "ADIPOQ", "TURBO", "MA", "DNA", "HMR", "MD", "PCR", "KAPA", "PE", "STAR", "BAM", "GO", "PCA", "2D", "FDR", "CI", "UCP", "KO", "NE", "SNS", "YH", "AG", "MJ", "NJ", "JE", "LA", "SD", "MO", "DP", "SM", "HC", "FASEB", "AM", "AP", "NZ", "LM", "CM", "PO", "YY", "GA", "AC", "AL", "WS", "MK", "HM", "MP", "AW", "JJ", "JM", "MTND5P10"
+)
 
 # Save the plot to a PDF file
 pdf("./figures/DGE_HyperHypo_pval_0.05_paper_mentioned.pdf", width = 12, height = 6)
-plot.data = merged.df %>% filter(pval <= 0.05) %>% mutate(Tissue = case_when(
-                                                                                                  grepl("SC", covariates) ~ "SubQ",
-                                                                                                  grepl("Deep", covariates) ~ "Deep"))
-  tryCatch({
-     # Check if plot.data is empty
-    if(nrow(plot.data) == 0) {
+plot.data <- merged.df %>%
+  filter(pval <= 0.05) %>%
+  mutate(Tissue = case_when(
+    grepl("SC", covariates) ~ "SubQ",
+    grepl("Deep", covariates) ~ "Deep"
+  ))
+tryCatch(
+  {
+    # Check if plot.data is empty
+    if (nrow(plot.data) == 0) {
       warning(paste("No data to plot for covariate:", covar))
       next
     }
 
     # Order the data by average slope in descending order
-    plot.data = plot.data %>% 
+    plot.data <- plot.data %>%
       filter(symbol %in% mentioned_genes) %>%
-      group_by(symbol) %>% 
-      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>% 
-      ungroup() %>% 
+      group_by(symbol) %>%
+      mutate(Avg.FC = mean(logfc, na.rm = TRUE)) %>%
+      ungroup() %>%
       arrange(desc(Avg.FC))
 
     # Create the dot plot using ggplot2
-    g = ggplot(plot.data, aes(Tissue, symbol))
-    p = g +  
+    g <- ggplot(plot.data, aes(Tissue, symbol))
+    p <- g +
       geom_count(aes(size = -log10(pval), fill = logfc), shape = 21, color = "black", stroke = 0.5) +
-      
+
       scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) + # Wrap text in y-axis labels
       scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + # Color gradient for fill
       scale_y_discrete(limits = rev(unique(plot.data$symbol))) + # Reverse y-axis order
@@ -855,15 +895,15 @@ plot.data = merged.df %>% filter(pval <= 0.05) %>% mutate(Tissue = case_when(
 
     # Print the plot
     print(p)
-    
-      # Save the plot to a PNG file
-  # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
 
-
-  }, error = function(e) {
+    # Save the plot to a PNG file
+    # ggsave(paste0("./figures/DGE_summary/", covar, "_DGE_summary_top_padj.png"), device = "png", width = 12, height = 6, plot = p, units = "in", dpi = 300)
+  },
+  error = function(e) {
     # Handle any errors during plotting
     message(paste("Error while plotting covariate:", covar, "-", e$message))
-  })
+  }
+)
 
 
 # Close the PDF device
@@ -871,10 +911,9 @@ dev.off()
 ```
 
 ```{r}
-TCA_genes = c("NDUFAF7","NDUFAB1","PDK4","PDK2","UQCRC1","NDUFS1","MPC1","CS","HAGH","NDUFB4","ME1","IDH3G","PDK3","SDHA","ME2","L2HGDH","NDUFB2","PDPR","DLD","FH","ATP5F1D","NDUFB7","SLC16A8","ACO2","GSTZ1","NDUFAF5","IDH3B","SLC25A14","ETFB","OGDH","COA1","NDUFC1","UCP1","PDHX","NDUFS8","ATP5F1B","LDHB","COX6A1","PPARD","NNT","TIMMDC1","NDUFS7","COQ10B","COX7A2L","ATP5PB","SDHB","NDUFB3","NDUFA8","DLST","NDUFAF4","ATP5F1E","GLO1","NDUFA1","DMAC2L","COX6B1","TRAP1","COX7C","UQCR11","NDUFA5","ECSIT","NDUFA10","COX4I1","COX7B","NDUFA2","PDHA1","SCO1","COX16","LDHA","ATP5MC2","COQ10A","COX5B","SUCLA2","TACO1","NDUFB5","NDUFAF1","LRPPRC","NDUFA9","ETFA","UQCRC2","NDUFB10","SLC16A3","MPC2","SDHC","NDUFS6","MDH2","NDUFB11","ADHFE1","NDUFB9","SURF1","DLAT","NDUFC2","ME3","NUBPL","ATP5F1A","PDK1","SLC25A27","ATP5MC3","ATP5PF","SLC16A1","NDUFAF6","UQCRB","NDUFS2","ATP5MC1","NDUFV3","PM20D1","PDHA2","SUCLG1","COX18","NDUFAF2","NDUFS4","UQCRQ","COX6C","PDP1","NDUFB6","ATP5F1C","NDUFB8","COX11","IDH3A","LDHC","LDHAL6A","ATP5MG","NDUFV1","ATP5PD","PDHB","NDUFS5","ATP5ME","UQCRFS1","NDUFA3","TMEM126B","ETFDH","LDHAL6B","CYCS","BSG","SUCLG2","PDP2","UQCRH","NDUFA11","UCP3","UCP2","COX8A","ACAD9","NDUFAF3","NDUFV2","COX14","COX5A","CYC1","FAHD1","D2HGDH","IDH2","NDUFB1","UQCR10","NDUFA12","TMEM186","NDUFA6","NDUFA13","RXRA","NDUFA4","MT-ND6","MT-CO2","MT-CYB","MT-ND2","MT-ND5","MT-CO1","MT-ND3","MT-ND4","MT-ND1","MT-ATP6","MT-CO3","COX20","SDHD","VDAC1","NDUFS3","MT-ATP8","COX19","ATP5MF","ATP5PO","NDUFA7","NDUFA6","NDUFA6","NDUFA6","NDUFA3","NDUFA3","NDUFA3","NDUFA3","NDUFA3","NDUFA3","NDUFA6","NDUFA3","NDUFA3","SURF1","NDUFA6","SLC16A1","NDUFS1","SCO2","LDHA")
+TCA_genes <- c("NDUFAF7", "NDUFAB1", "PDK4", "PDK2", "UQCRC1", "NDUFS1", "MPC1", "CS", "HAGH", "NDUFB4", "ME1", "IDH3G", "PDK3", "SDHA", "ME2", "L2HGDH", "NDUFB2", "PDPR", "DLD", "FH", "ATP5F1D", "NDUFB7", "SLC16A8", "ACO2", "GSTZ1", "NDUFAF5", "IDH3B", "SLC25A14", "ETFB", "OGDH", "COA1", "NDUFC1", "UCP1", "PDHX", "NDUFS8", "ATP5F1B", "LDHB", "COX6A1", "PPARD", "NNT", "TIMMDC1", "NDUFS7", "COQ10B", "COX7A2L", "ATP5PB", "SDHB", "NDUFB3", "NDUFA8", "DLST", "NDUFAF4", "ATP5F1E", "GLO1", "NDUFA1", "DMAC2L", "COX6B1", "TRAP1", "COX7C", "UQCR11", "NDUFA5", "ECSIT", "NDUFA10", "COX4I1", "COX7B", "NDUFA2", "PDHA1", "SCO1", "COX16", "LDHA", "ATP5MC2", "COQ10A", "COX5B", "SUCLA2", "TACO1", "NDUFB5", "NDUFAF1", "LRPPRC", "NDUFA9", "ETFA", "UQCRC2", "NDUFB10", "SLC16A3", "MPC2", "SDHC", "NDUFS6", "MDH2", "NDUFB11", "ADHFE1", "NDUFB9", "SURF1", "DLAT", "NDUFC2", "ME3", "NUBPL", "ATP5F1A", "PDK1", "SLC25A27", "ATP5MC3", "ATP5PF", "SLC16A1", "NDUFAF6", "UQCRB", "NDUFS2", "ATP5MC1", "NDUFV3", "PM20D1", "PDHA2", "SUCLG1", "COX18", "NDUFAF2", "NDUFS4", "UQCRQ", "COX6C", "PDP1", "NDUFB6", "ATP5F1C", "NDUFB8", "COX11", "IDH3A", "LDHC", "LDHAL6A", "ATP5MG", "NDUFV1", "ATP5PD", "PDHB", "NDUFS5", "ATP5ME", "UQCRFS1", "NDUFA3", "TMEM126B", "ETFDH", "LDHAL6B", "CYCS", "BSG", "SUCLG2", "PDP2", "UQCRH", "NDUFA11", "UCP3", "UCP2", "COX8A", "ACAD9", "NDUFAF3", "NDUFV2", "COX14", "COX5A", "CYC1", "FAHD1", "D2HGDH", "IDH2", "NDUFB1", "UQCR10", "NDUFA12", "TMEM186", "NDUFA6", "NDUFA13", "RXRA", "NDUFA4", "MT-ND6", "MT-CO2", "MT-CYB", "MT-ND2", "MT-ND5", "MT-CO1", "MT-ND3", "MT-ND4", "MT-ND1", "MT-ATP6", "MT-CO3", "COX20", "SDHD", "VDAC1", "NDUFS3", "MT-ATP8", "COX19", "ATP5MF", "ATP5PO", "NDUFA7", "NDUFA6", "NDUFA6", "NDUFA6", "NDUFA3", "NDUFA3", "NDUFA3", "NDUFA3", "NDUFA3", "NDUFA3", "NDUFA6", "NDUFA3", "NDUFA3", "SURF1", "NDUFA6", "SLC16A1", "NDUFS1", "SCO2", "LDHA")
 
-mito_beta_genes = c("CAA2","ACAD10","ACAD11","ACADL","ACADM","ACADS","ACADVL","ACBD6","ACBD7","ACOT1","ACOT11","ACOT12","ACOT13","ACOT2","ACOT7","ACOT9","ACSF2","ACSM3","ACSM6","DBI","DECR1","ECHS1","ECI1","HADH","HADHA","HADHB","MCAT","MCEE","MECR","MMAA","MMUT","NDUFAB1","PCCA","PCCB","PCTP","THEM4","THEM5")
+mito_beta_genes <- c("CAA2", "ACAD10", "ACAD11", "ACADL", "ACADM", "ACADS", "ACADVL", "ACBD6", "ACBD7", "ACOT1", "ACOT11", "ACOT12", "ACOT13", "ACOT2", "ACOT7", "ACOT9", "ACSF2", "ACSM3", "ACSM6", "DBI", "DECR1", "ECHS1", "ECI1", "HADH", "HADHA", "HADHB", "MCAT", "MCEE", "MECR", "MMAA", "MMUT", "NDUFAB1", "PCCA", "PCCB", "PCTP", "THEM4", "THEM5")
 
-uncoupling_genes = c("PM20D1","SLC25A14","SLC25A27","UCP1","UCP2","UCP3")
-
+uncoupling_genes <- c("PM20D1", "SLC25A14", "SLC25A27", "UCP1", "UCP2", "UCP3")
 ```
