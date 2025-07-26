@@ -6,11 +6,9 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(tidyverse)
 library(stringr)
-library(readxl)
 
 # Define a custom theme
 custom_theme <- theme_bw() + theme(
@@ -65,13 +63,14 @@ dirs <- list.dirs()[-1]
 2) Extract the pathway name, significance and direction for each correlation. This will tell us for each covariate, what are the consistent changes.
 ```{r}
 path_list <- list(
-  HypoHyper = read.csv("./HypoHyper_weight/gene_stats.csv", row.names = 1),
-  UCP1 = read.csv("./UCP1_weight/gene_stats.csv", row.names = 1),
-  NoAdjustment = read.csv("./No_weight/gene_stats.csv", row.names = 1),
-  Covar_adjusted = read.csv("./BMI_temp_covars/gene_stats.csv", row.names = 1)
+  HypoHyper = read.csv("../data/HypoHyper_weight/gene_stats.csv", row.names = 1),
+  UCP1 = read.csv("../data/UCP1_weight/gene_stats.csv", row.names = 1),
+  NoAdjustment = read.csv("../data/No_weight/gene_stats.csv", row.names = 1),
+  Covar_adjusted = read.csv("../data/BMI_temp_covars/gene_stats.csv", row.names = 1)
 )
 
 path_list[[1]]
+
 ```
 
 
@@ -279,7 +278,7 @@ min_FDR <- min(-log10(merged.df$FDR), na.rm = TRUE)
 max_FDR <- max(-log10(merged.df$FDR), na.rm = TRUE)
 
 # Save the plot to a PDF file
-pdf("./figures/DGE_fdr_0.15_summary_top_padj.pdf", width = 12, height = 6)
+# pdf("./figures/DGE_fdr_0.15_summary_top_padj.pdf", width = 12, height = 6)
 
 # Loop through each covariate and create a dot plot
 for (covar in covars) {
@@ -328,7 +327,7 @@ for (covar in covars) {
 }
 
 # Close the PDF device
-dev.off()
+# dev.off()
 ```
 Adjusting for pval
 ```{r}
@@ -580,6 +579,7 @@ for (covar in covars) {
 # Close the PDF device
 dev.off()
 ```
+
 # HypoHyper DEG analysis
 ```{r}
 new_list <- path_list
