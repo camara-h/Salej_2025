@@ -6,32 +6,26 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(openxlsx)
 library(tidyverse)
 library(ggpubr)
 
-# Define a custom theme
-custom_theme <- theme_classic() +
-      theme(
-        axis.title = element_text(size = 20),
-        axis.text = element_text(size = 18),
-        plot.title = element_text(size = 24, face = "bold"),
-        legend.title = element_text(size = 20),
-        legend.text = element_text(size = 16),
-        strip.text = element_text(size = 16)
-
-      )
-# Apply the theme globally
-theme_set(custom_theme)
-
 #Formatting the metadata
-meta = read.xlsx("Metadata_for_correlation.xlsx")
+meta = read.xlsx("../data/Metadata_for_correlation.xlsx")
 
 meta = meta %>% separate_wider_delim(cols = Sample, delim = " ", names = c("Tissue", "Donor_ID"))
 meta = meta %>% rename("Serum_Free_T3" = "Free.T3",
                        "Serum_Free_T4" = "Free.T4",
-                       "Serum_TSH" = "TSH")
+                       "Serum_TSH" = "TSH",
+                       "log10_Serum_TSH" = "log[TSH]"
+                       ) %>%
+  mutate("log10_Serum_TSH" = log10(Serum_TSH))
+  
+
+
+names(meta) = gsub("[ /]", "_", names(meta))
+
+
 head(meta)
 names(meta)
 
@@ -55,14 +49,77 @@ correct_mg_string <- function(x) {
 }
 ```
 
+# ---Plotting serum to serum variables
+```{r}
+#Extract column with serum measurements
+serum_cols = grep("Serum", names(meta), value = T)
+plot.meta = meta %>% select(serum_cols, Tissue)
+plot.meta$Serum_Free_T3 = as.numeric(plot.meta$Serum_Free_T3)
+```
+
+
+```{r}
+combinations <- data.frame(x = c("Serum_TSH", "Serum_TSH", "Serum_Free_T4"),
+                           y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"))
+
+combinations <- data.frame(x = c("log10_Serum_TSH", "log10_Serum_TSH", "Serum_Free_T4"),
+                           y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"))
+
+plot_list <- list()
+# Plot with correlation labels in the top-left corner
+for(n in 1:nrow(combinations)){
+    var1 <- combinations$x[n]
+    var2 <- combinations$y[n]
+    sp <- ggscatter(plot.meta %>% filter(Tissue == "Deep"), 
+                    x = var1, y = var2,
+      color = "black",
+      add = "reg.line", 
+      conf.int = T) #Change this to TRUE if you want to add the Coef interval
+    
+    # max.data = plot.meta %>% select(all_of(c(var1, var2))) %>% filter(!is.na(!!sym(var1)), !is.na(!!sym(var2)))
+    # max.y = max(max.data[[var2]], na.rm = T)
+    # max.x = max(max.data[[var1]], na.rm = T)
+    
+    sp = sp + stat_cor(
+      method = "spearman", 
+      cor.coef.name = "rho", 
+      hjust = -0.1, 
+      vjust = 0, 
+      size = 6/2.81,
+      show.legend = F) + 
+      
+      ##The code below should be useless based on the theme_set above
+      theme_pubr(base_size = 6) +
+      # scale_y_continuous(limits = c(0, max.y*1.2)) +
+      # scale_x_continuous(limits = c(0, max.x*1.05)) +
+      theme(
+        plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
+      ) +
+      labs(title = paste(correct_mg_string(var1), correct_mg_string(var2), sep = " x "),
+           x = correct_mg_string(var1),
+           y = correct_mg_string(var2)
+           ) 
+    plot_list[[paste(var1, var2, sep = "x")]] <- sp
+
+}
+
+plot_list
+```
+
+Subjects 1, 3, 5, 9, 10 and 12 had their blood collected for measurement of thyroid hormones before surgery.
+Therefore, correlations of circulating and local adipose tissue thyroid hormones is not paired.
+Those subjects will be excluded from correlations with local thyroid hormones.
+
 
 #PLOTTING THE DATA 
 ```{r}
+
 #--------------
 # FILTER FOR SELECTED PATIENTS WITH THYROID TEST AT TIME OF SURGERY
 #--------------
 
-tyroid_at_surgery_patients <- c(2,4,6,7,8,11,13,14,15,16)
+#Filter for subjects with paired blood drawn and surgery
+subjects_to_keep <- c(2,4,6,7,8,11,13,14,15,16)
 
 names(meta) = gsub("[ /]", "_", names(meta))
 plot.meta = meta %>% select(-`log[TSH]`)
@@ -72,6 +129,7 @@ plot.meta <- plot.meta %>%
   filter(Donor_ID %in% as.character(tyroid_at_surgery_patients)) %>% #Filtering for selected patients
   select(1,2,Serum_TSH, T4_mg.tissue, T3_mg.tissue, Serum_Free_T4, Serum_Free_T3) #At this point I can also filter for the graphs I am plotting only
 
+plot.meta.1 <- plot.meta
 # Plot with correlation labels in the top-left corner
 for(col in (3:ncol(plot.meta))){
   col2 = 3
@@ -114,12 +172,12 @@ for(col in (3:ncol(plot.meta))){
 
 
     print(sp)
-    ggsave(create.dir = T, 
-           filename = file.path("./figures/Paper_figures/Figure_4/Tyroid_at_surgery_filter/", var1, paste0(var1, "_x_", var2, ".png")),
-          device = "png", 
-          plot = sp,
-          width = 6, height = 6,
-          dpi = 600)
+    # ggsave(create.dir = T, 
+    #        filename = file.path("./figures/Paper_figures/Figure_4/Tyroid_at_surgery_filter/", var1, paste0(var1, "_x_", var2, ".png")),
+    #       device = "png", 
+    #       plot = sp,
+    #       width = 6, height = 6,
+    #       dpi = 600)
     col2 = col2 + 1
   }
 }
@@ -128,80 +186,12 @@ names(plot.meta)
 grep("u", names(plot.meta))
 ```
 
-#Plotting serum to serum variables
-```{r}
-names(meta) = gsub("[ /]", "_", names(meta))
-serum_cols = grep("Serum", names(meta), value = T)
-plot.meta = meta %>% select(serum_cols, Tissue)
-plot.meta$Serum_Free_T3 = as.numeric(plot.meta$Serum_Free_T3)
 
-plot.meta %>% filter(!is.na(Serum_Free_T4), !is.na(Serum_TSH), !is.na(Serum_Free_T3))
-
-# Plot with correlation labels in the top-left corner
-for(col in (1:3)){
-  col2 = 1
-  while(col2 <= 3){
-    var1 = names(plot.meta)[col]
-    var2 = names(plot.meta)[col2]
-    
-    
-    
-    sp <- ggscatter(plot.meta %>% filter(Tissue == "Deep"), x = var1, y = var2,
-      color = "black",
-      add = "reg.line", 
-      conf.int = T) #Change this to TRUE if you want to add the Coef interval
-    
-    max.data = plot.meta %>% select(all_of(c(var1, var2))) %>% filter(!is.na(!!sym(var1)), !is.na(!!sym(var2)))
-    max.y = max(max.data[[var2]], na.rm = T)
-    max.x = max(max.data[[var1]], na.rm = T)
-    sp = sp + stat_cor(
-      method = "spearman", cor.coef.name = "rho", 
-      label.x = -Inf, label.y = c(max.y*1.1*1.05, max.y*1.1), hjust = -0.1, vjust = 0, size = 6,
-      show.legend = F) + 
-      
-      ##The code below should be useless based on the theme_set above
-      theme_classic() +
-      theme(
-        axis.title = element_text(size = 20),
-        axis.text = element_text(size = 18),
-        plot.title = element_text(size = 24, face = "bold"),
-        legend.title = element_text(size = 20),
-        legend.text = element_text(size = 16),
-        strip.text = element_text(size = 16)
-
-      ) +
-      labs(title = paste(correct_mg_string(var1), correct_mg_string(var2), sep = " x "),
-           x = correct_mg_string(var1),
-           y = correct_mg_string(var2)
-           ) +
-      scale_y_continuous(limits = c(0, max.y*1.2)) +
-      scale_x_continuous(limits = c(0, max.x*1.05))
-    
-
-
-    print(sp)
-    ggsave(create.dir = T, 
-           filename = file.path("./figures/correlation_plots", var1, paste0(var1, "_x_", var2, ".png")),
-          device = "png", 
-          plot = sp,
-          width = 6, height = 6,
-          dpi = 600)
-    col2 = col2 + 1
-  }
-}
-
-names(plot.meta)
-grep("u", names(plot.meta))
-```
 
 #Plotting serum to serum variables with Alina`s raw data
-```{r}
-meta_backup
-```
-
 
 ```{r}
-meta <- read.xlsx("BAT Collection Study_Gavrila_11_2022_Joslin.xlsx")
+meta <- read.xlsx("../data/BAT Collection Study_Gavrila_11_2022_Joslin.xlsx")
 head(meta)
 
 meta <- meta %>% filter(!is.na(`Study.ID#`)) %>% 
@@ -264,12 +254,12 @@ for(col in (2:4)){
 
 
     print(sp)
-    ggsave(create.dir = T, 
-           filename = file.path("./figures/Paper_figures/Figure_4/correlation_plots", var1, paste0(var1, "_x_", var2, ".png")),
-          device = "png", 
-          plot = sp,
-          width = 6, height = 6,
-          dpi = 600)
+    # ggsave(create.dir = T, 
+    #        filename = file.path("./figures/Paper_figures/Figure_4/correlation_plots", var1, paste0(var1, "_x_", var2, ".png")),
+    #       device = "png", 
+    #       plot = sp,
+    #       width = 6, height = 6,
+    #       dpi = 600)
     col2 = col2 + 1
   }
 }
@@ -278,6 +268,12 @@ names(plot.meta)
 grep("u", names(plot.meta))
 ```
 
+```{r}
+plot.meta
+plot.meta.1
+
+all(plot.meta$Serum_TSH == plot.meta.1$Serum_TSH)
+```
 
 ```{r}
 #--------------
@@ -342,12 +338,12 @@ for(col in (2:4)){
 
 
     print(sp)
-    ggsave(create.dir = T, 
-           filename = file.path("./figures/Paper_figures/Figure_4/Tyroid_at_surgery_filter/correlation_plots", var1, paste0(var1, "_x_", var2, ".png")),
-          device = "png", 
-          plot = sp,
-          width = 6, height = 6,
-          dpi = 600)
+    # ggsave(create.dir = T, 
+    #        filename = file.path("./figures/Paper_figures/Figure_4/Tyroid_at_surgery_filter/correlation_plots", var1, paste0(var1, "_x_", var2, ".png")),
+    #       device = "png", 
+    #       plot = sp,
+    #       width = 6, height = 6,
+    #       dpi = 600)
     col2 = col2 + 1
   }
 }
@@ -355,6 +351,7 @@ for(col in (2:4)){
 names(plot.meta)
 grep("u", names(plot.meta))
 ```
+
 
 
 
