@@ -11,20 +11,22 @@ library(tidyverse)
 library(ggplot2)
 library(ggpubr)
 
-#Formatting the metadata
-meta = read.xlsx("../data/Metadata_for_correlation.xlsx")
+# Formatting the metadata
+meta <- read.xlsx("../data/Metadata_for_correlation.xlsx")
 
-meta = meta %>% separate_wider_delim(cols = Sample, delim = " ", names = c("Tissue", "Donor_ID"))
-meta = meta %>% rename("Serum_Free_T3" = "Free.T3",
-                       "Serum_Free_T4" = "Free.T4",
-                       "Serum_TSH" = "TSH",
-                       "log10_Serum_TSH" = "log[TSH]"
-                       ) %>%
+meta <- meta %>% separate_wider_delim(cols = Sample, delim = " ", names = c("Tissue", "Donor_ID"))
+meta <- meta %>%
+  rename(
+    "Serum_Free_T3" = "Free.T3",
+    "Serum_Free_T4" = "Free.T4",
+    "Serum_TSH" = "TSH",
+    "log10_Serum_TSH" = "log[TSH]"
+  ) %>%
   mutate("log10_Serum_TSH" = log10(Serum_TSH))
-  
 
 
-names(meta) = gsub("[ /]", "_", names(meta))
+
+names(meta) <- gsub("[ /]", "_", names(meta))
 
 
 head(meta)
@@ -33,106 +35,110 @@ names(meta)
 correct_mg_string <- function(x) {
   # First, replace '_mg' with '/mg'
   x <- gsub("_mg", "/mg", x)
-  
+
   # Next, replace '_μg' with '/μg'
   x <- gsub("_μg", "/μg", x)
-  
+
   # Next, replace 'T3_' with 'T3/'
   x <- gsub("T3_", "T3/", x)
-  
-    # Next, replace 'T4_' with 'T4/'
+
+  # Next, replace 'T4_' with 'T4/'
   x <- gsub("T4_", "T4/", x)
-  
+
   # Finally, replace any remaining '_' with a space
   x <- gsub("_", " ", x)
-  
+
   return(x)
 }
 ```
 
 # ---Plotting serum to serum variables
 ```{r}
-#Extract column with serum measurements
-serum_cols = grep("Serum", names(meta), value = T)
-plot.meta = meta %>% select(serum_cols, Tissue)
-plot.meta$Serum_Free_T3 = as.numeric(plot.meta$Serum_Free_T3)
+# Extract column with serum measurements
+serum_cols <- grep("Serum", names(meta), value = T)
+plot.meta <- meta %>% select(serum_cols, Tissue)
+plot.meta$Serum_Free_T3 <- as.numeric(plot.meta$Serum_Free_T3)
 ```
 
 ```{r}
-#Define whether to use log10 TSH
-use_log10_TSH = TRUE
+# Define whether to use log10 TSH
+use_log10_TSH <- TRUE
 ```
 
 
 ```{r}
-if(use_log10_TSH){
-  #Define combination to plot with log-transformed TSH
-combinations <- data.frame(x = c("log10_Serum_TSH", "log10_Serum_TSH", "Serum_Free_T4"),
-                           y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"),
-                           x_label = c("log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]", "Serum-free T4 (ng/dL)"),
-                           y_label = c("Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)", "Serum-free T3 (pg/dL)")
-                           )
-}else{
-#Define combination to plot with non-transformed TSH
-combinations <- data.frame(x = c("Serum_TSH", "Serum_TSH", "Serum_Free_T4"),
-                           y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"),
-                           x_label = c("Serum TSH (mIU/L)", "Serum TSH (mIU/L)", "Serum-free T4 (ng/dL)"),
-                           y_label = c("Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)", "Serum-free T3 (pg/dL)")
-                           )
+if (use_log10_TSH) {
+  # Define combination to plot with log-transformed TSH
+  combinations <- data.frame(
+    x = c("log10_Serum_TSH", "log10_Serum_TSH", "Serum_Free_T4"),
+    y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"),
+    x_label = c("log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]", "Serum-free T4 (ng/dL)"),
+    y_label = c("Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)", "Serum-free T3 (pg/dL)")
+  )
+} else {
+  # Define combination to plot with non-transformed TSH
+  combinations <- data.frame(
+    x = c("Serum_TSH", "Serum_TSH", "Serum_Free_T4"),
+    y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"),
+    x_label = c("Serum TSH (mIU/L)", "Serum TSH (mIU/L)", "Serum-free T4 (ng/dL)"),
+    y_label = c("Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)", "Serum-free T3 (pg/dL)")
+  )
 }
 
-#initialize list
+# initialize list
 plot_list <- list()
 # Plot with correlation labels in the top-left corner
-for(n in 1:nrow(combinations)){
-    var1 <- combinations$x[n]
-    var2 <- combinations$y[n]
-    x_label <- combinations$x_label[n]
-    y_label <- combinations$y_label[n]
-    
-    sp <- ggscatter(plot.meta %>% filter(Tissue == "Deep"), 
-                    x = var1, y = var2, 
-                    size = 0.8, 
-                    shape = 21,
-                    alpha = 1,
-                    fill = "white",
-                    color = "black",
-                    add = "reg.line",
-                    conf.int = FALSE,
-                    add.params = list(size = 0.3))  # Line thickness
+for (n in 1:nrow(combinations)) {
+  var1 <- combinations$x[n]
+  var2 <- combinations$y[n]
+  x_label <- combinations$x_label[n]
+  y_label <- combinations$y_label[n]
 
-    axis.data = plot.meta %>% select(all_of(c(var1, var2))) %>% filter(!is.na(!!sym(var1)), !is.na(!!sym(var2)))
-    max.y = max(axis.data[[var2]], na.rm = T)
-    max.x = max(axis.data[[var1]], na.rm = T)
-    min.y = min(axis.data[[var2]], na.rm = T)
-    min.x = min(axis.data[[var1]], na.rm = T)
-    
-    sp = sp + stat_cor(
-      method = "spearman", 
-      cor.coef.name = "rho", 
-      label.x = -Inf, 
-      label.y = c(max.y*1.1*1.05, max.y*1.1), 
-      hjust = -0.1, 
-      vjust = 0, 
-      size = 4/2.81,
-      show.legend = F) + 
-      
-      ##The code below should be useless based on the theme_set above
-      theme_pubr(base_size = 6) +
-      scale_y_continuous(limits = c(min.y, max.y*1.2)) +
-      scale_x_continuous(limits = c(min.x, max.x*1.05)) +
-      theme(
-        plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
-        axis.line = element_line(size = 0.3)  # smaller = thinner lines
+  sp <- ggscatter(plot.meta %>% filter(Tissue == "Deep"),
+    x = var1, y = var2,
+    size = 0.8,
+    shape = 21,
+    alpha = 1,
+    fill = "white",
+    color = "black",
+    add = "reg.line",
+    conf.int = FALSE,
+    add.params = list(size = 0.3)
+  ) # Line thickness
 
-      ) +
-      labs(
-        # title = paste(correct_mg_string(var1), correct_mg_string(var2), sep = " x "),
-        x = x_label,
-        y = y_label
-        ) 
-    plot_list[[paste(var1, var2, sep = "x")]] <- sp
+  axis.data <- plot.meta %>%
+    select(all_of(c(var1, var2))) %>%
+    filter(!is.na(!!sym(var1)), !is.na(!!sym(var2)))
+  max.y <- max(axis.data[[var2]], na.rm = T)
+  max.x <- max(axis.data[[var1]], na.rm = T)
+  min.y <- min(axis.data[[var2]], na.rm = T)
+  min.x <- min(axis.data[[var1]], na.rm = T)
 
+  sp <- sp + stat_cor(
+    method = "spearman",
+    cor.coef.name = "rho",
+    label.x = -Inf,
+    label.y = c(max.y * 1.1 * 1.05, max.y * 1.1),
+    hjust = -0.1,
+    vjust = 0,
+    size = 4 / 2.81,
+    show.legend = F
+  ) +
+
+    ## The code below should be useless based on the theme_set above
+    theme_pubr(base_size = 6) +
+    scale_y_continuous(limits = c(min.y, max.y * 1.2)) +
+    scale_x_continuous(limits = c(min.x, max.x * 1.05)) +
+    theme(
+      plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
+      axis.line = element_line(size = 0.3) # smaller = thinner lines
+    ) +
+    labs(
+      # title = paste(correct_mg_string(var1), correct_mg_string(var2), sep = " x "),
+      x = x_label,
+      y = y_label
+    )
+  plot_list[[paste(var1, var2, sep = "x")]] <- sp
 }
 
 plot_list
@@ -145,12 +151,12 @@ Those subjects will be excluded from correlations with local thyroid hormones.
 
 #PLOTTING THE DATA 
 ```{r}
-#Store subjects with paired blood drawn and surgery
-subjects_to_keep <- c(2,4,6,7,8,11,13,14,15,16)
+# Store subjects with paired blood drawn and surgery
+subjects_to_keep <- c(2, 4, 6, 7, 8, 11, 13, 14, 15, 16)
 
-#Prepare plot data
-plot.meta = meta
-plot.meta$Serum_Free_T3 = as.numeric(plot.meta$Serum_Free_T3)
+# Prepare plot data
+plot.meta <- meta
+plot.meta$Serum_Free_T3 <- as.numeric(plot.meta$Serum_Free_T3)
 plot.meta <- plot.meta %>%
   filter(Donor_ID %in% as.character(tyroid_at_surgery_patients))
 names(plot.meta)
@@ -158,90 +164,102 @@ names(plot.meta)
 
 
 ```{r}
-if(use_log10_TSH){
-#Define combination to plot with log-transformed TSH
-combinations <- data.frame(x = c("log10_Serum_TSH", "log10_Serum_TSH", "Serum_Free_T4", "Serum_Free_T3"),
-                           y = c("T3_mg.tissue", "T4_mg.tissue", "T4_mg.tissue", "T3_mg.tissue"),
-                           x_label = c("log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]", 
-                                       "Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)"),
-                           y_label = c("T3 nM/mg of tissue", "T4 nM/mg of tissue",
-                                       "T4 nM/mg of tissue", "T3 nM/mg of tissue")
-                           )
-}else{
-  #Define combination to plot with non-transformed TSH
-combinations <- data.frame(x = c("Serum_TSH", "Serum_TSH", "Serum_Free_T4", "Serum_Free_T3"),
-                           y = c("T3_mg.tissue", "T4_mg.tissue", "T4_mg.tissue", "T3_mg.tissue"),
-                           x_label = c("Serum TSH (mIU/L)", "Serum TSH (mIU/L)", 
-                                       "Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)"),
-                           y_label = c("T3 nM/mg of tissue", "T4 nM/mg of tissue",
-                                       "T4 nM/mg of tissue", "T3 nM/mg of tissue")
-                           )
+if (use_log10_TSH) {
+  # Define combination to plot with log-transformed TSH
+  combinations <- data.frame(
+    x = c("log10_Serum_TSH", "log10_Serum_TSH", "Serum_Free_T4", "Serum_Free_T3"),
+    y = c("T3_mg.tissue", "T4_mg.tissue", "T4_mg.tissue", "T3_mg.tissue"),
+    x_label = c(
+      "log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]",
+      "Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)"
+    ),
+    y_label = c(
+      "T3 nM/mg of tissue", "T4 nM/mg of tissue",
+      "T4 nM/mg of tissue", "T3 nM/mg of tissue"
+    )
+  )
+} else {
+  # Define combination to plot with non-transformed TSH
+  combinations <- data.frame(
+    x = c("Serum_TSH", "Serum_TSH", "Serum_Free_T4", "Serum_Free_T3"),
+    y = c("T3_mg.tissue", "T4_mg.tissue", "T4_mg.tissue", "T3_mg.tissue"),
+    x_label = c(
+      "Serum TSH (mIU/L)", "Serum TSH (mIU/L)",
+      "Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)"
+    ),
+    y_label = c(
+      "T3 nM/mg of tissue", "T4 nM/mg of tissue",
+      "T4 nM/mg of tissue", "T3 nM/mg of tissue"
+    )
+  )
 }
 ```
 
 ```{r}
 # Plot with correlation labels in the top-left corner
-for(n in 1:nrow(combinations)){
-    var1 <- combinations$x[n]
-    var2 <- combinations$y[n]
-    x_label <- combinations$x_label[n]
-    y_label <- combinations$y_label[n]
+for (n in 1:nrow(combinations)) {
+  var1 <- combinations$x[n]
+  var2 <- combinations$y[n]
+  x_label <- combinations$x_label[n]
+  y_label <- combinations$y_label[n]
 
-    sp <- ggscatter(plot.meta, 
-                    x = var1, y = var2,
-                    color = "Tissue", 
-                    palette = c("#E66100", "#5D3A9B"),
-                    size = 0.8, 
-                    add = "reg.line",
-                    conf.int = FALSE,
-                    add.params = list(size = 0.3))  # Line thickness
+  sp <- ggscatter(plot.meta,
+    x = var1, y = var2,
+    color = "Tissue",
+    palette = c("#E66100", "#5D3A9B"),
+    size = 0.8,
+    add = "reg.line",
+    conf.int = FALSE,
+    add.params = list(size = 0.3)
+  ) # Line thickness
 
-    axis.data = plot.meta %>% select(all_of(c(var1, var2))) %>% filter(!is.na(!!sym(var1)), !is.na(!!sym(var2)))
-    max.y = max(axis.data[[var2]], na.rm = T)
-    max.x = max(axis.data[[var1]], na.rm = T)
-    min.y = min(axis.data[[var2]], na.rm = T)
-    min.x = min(axis.data[[var1]], na.rm = T)
-    
-    sp = sp + stat_cor(
-      aes(color = Tissue),
-      method = "spearman", 
-      cor.coef.name = "rho", 
-      label.x = -Inf, 
-      label.y = c(max.y*1.2, max.y*1.1), 
-      hjust = -0.1, 
-      vjust = 0, 
-      size = 4/2.81,
-      show.legend = F) + 
-      
-      ##The code below should be useless based on the theme_set above
-      theme_pubr(base_size = 6, legend = "right") +
-      scale_y_continuous(limits = c(min.y, max.y*1.25)) +
-      scale_x_continuous(limits = c(min.x, max.x*1.05)) +
-      theme(
-        plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
-        axis.line = element_line(size = 0.3)  # smaller = thinner lines
+  axis.data <- plot.meta %>%
+    select(all_of(c(var1, var2))) %>%
+    filter(!is.na(!!sym(var1)), !is.na(!!sym(var2)))
+  max.y <- max(axis.data[[var2]], na.rm = T)
+  max.x <- max(axis.data[[var1]], na.rm = T)
+  min.y <- min(axis.data[[var2]], na.rm = T)
+  min.x <- min(axis.data[[var1]], na.rm = T)
 
-      ) +
-      labs(
-        # title = paste(correct_mg_string(var1), correct_mg_string(var2), sep = " x "),
-        x = x_label,
-        y = y_label
-        ) +
-      theme(legend.position = "none")
-    
-    #Keep legenf for last plot
-    if(n == nrow(combinations)){
-        sp <- sp + theme(
-          legend.position = c(0.97, 0.97),
-          legend.justification = c("right", "top"),
-          legend.background = element_rect(fill = alpha("white", 0.8), color = NA),
-          legend.key.size = unit(2, "mm"),
-          legend.text = element_text(size = 4),
-          legend.title = element_text(size = 5, hjust = 1)
-          )
-    }
-    plot_list[[paste(var1, var2, sep = "x")]] <- sp
+  sp <- sp + stat_cor(
+    aes(color = Tissue),
+    method = "spearman",
+    cor.coef.name = "rho",
+    label.x = -Inf,
+    label.y = c(max.y * 1.2, max.y * 1.1),
+    hjust = -0.1,
+    vjust = 0,
+    size = 4 / 2.81,
+    show.legend = F
+  ) +
 
+    ## The code below should be useless based on the theme_set above
+    theme_pubr(base_size = 6, legend = "right") +
+    scale_y_continuous(limits = c(min.y, max.y * 1.25)) +
+    scale_x_continuous(limits = c(min.x, max.x * 1.05)) +
+    theme(
+      plot.title = element_text(size = 8, face = "bold", hjust = 0.5),
+      axis.line = element_line(size = 0.3) # smaller = thinner lines
+    ) +
+    labs(
+      # title = paste(correct_mg_string(var1), correct_mg_string(var2), sep = " x "),
+      x = x_label,
+      y = y_label
+    ) +
+    theme(legend.position = "none")
+
+  # Keep legenf for last plot
+  if (n == nrow(combinations)) {
+    sp <- sp + theme(
+      legend.position = c(0.97, 0.97),
+      legend.justification = c("right", "top"),
+      legend.background = element_rect(fill = alpha("white", 0.8), color = NA),
+      legend.key.size = unit(2, "mm"),
+      legend.text = element_text(size = 4),
+      legend.title = element_text(size = 5, hjust = 1)
+    )
+  }
+  plot_list[[paste(var1, var2, sep = "x")]] <- sp
 }
 plot_list
 ```
@@ -249,24 +267,12 @@ plot_list
 ```{r}
 # Patchwork all plots in 3 columns
 final_plot <- wrap_plots(plot_list, ncol = 3) +
-  plot_annotation(tag_levels = 'A')  # Starts at A
+  plot_annotation(tag_levels = "A") # Starts at A
 final_plot
 
-#Save plot
+# Save plot
 save_suffix <- ifelse(use_log10_TSH, "_log10_TSH", "_raw_TSH")
 scale <- 100
 
-ggsave(paste0("../output/3 - Figures and Analysis/figures/Figure_3", save_suffix,".png"), create.dir = T, plot = final_plot, device = "png", width = 1*scale, height = 1*scale, units = "mm", dpi = 600, bg = "white")
+ggsave(paste0("../output/3 - Figures and Analysis/figures/Figure_3", save_suffix, ".png"), create.dir = T, plot = final_plot, device = "png", width = 1 * scale, height = 1 * scale, units = "mm", dpi = 600, bg = "white")
 ```
-
-
-
-
-
-
-
-
-
-
-
-
