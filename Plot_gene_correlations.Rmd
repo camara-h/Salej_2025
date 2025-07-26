@@ -56,9 +56,26 @@ path_list <- list(
 )
 
 path_list[[1]]
-
+path_list[[1]] <- path_list[[1]] %>% rownames_to_column("ensembl_id")
 ```
 
+```{r}
+pivot_and_clean <- function(data, pattern, value_name) {
+  data %>%
+    select(contains(pattern), ensembl_id) %>%
+    pivot_longer(cols = contains(pattern), names_to = "var", values_to = value_name) %>%
+    mutate(var = str_replace(var, "\\.[^\\.]*$", "")) #Search backward to last dot and remove extension
+}
+
+df <- path_list[[1]]
+slope_df <- pivot_and_clean(df, "slope", "slope")
+pval_df  <- pivot_and_clean(df, ".p",    "p_val")
+fdr_df   <- pivot_and_clean(df, "FDR",   "FDR")
+gene_info_df <- df %>% select(-contains("."))
+
+final_df <- left_join(slope_df, pval_df, by = c("var", "ensembl_id")) %>% left_join(fdr_df, by = c("var", "ensembl_id"))
+
+```
 
 ```{r}
 # Extract correlation variables from the list
@@ -145,6 +162,7 @@ all(pval_df$match_col == slope_df$match_col)
 
 head(final_df)
 ```
+
 # Correlation analysis
 ```{r}
 new_list <- path_list
