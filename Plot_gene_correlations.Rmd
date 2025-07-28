@@ -196,7 +196,7 @@ p <- ggplot(plot_data, aes(x = var_labels, y = ensembl_id)) +
 p <- p + facet_wrap(vars(tissue))
 p
 # Save plot
-scale <- 90
+scale <- 95
 ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create.dir = T, plot = p, device = "png", width = 1 * scale, height = (1 + 0.01 * plot_nrow) * scale, units = "mm", dpi = 600, bg = "white")
 ```
 # --- Create summary table to save
