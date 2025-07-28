@@ -11,19 +11,6 @@ library(tidyverse)
 library(stringr)
 library(ggpubr)
 
-# Define a custom theme
-custom_theme <- theme_bw() + theme(
-  axis.title = element_text(size = 14),
-  axis.text = element_text(size = 12),
-  plot.title = element_text(size = 18, face = "bold"),
-  legend.title = element_text(size = 14),
-  legend.text = element_text(size = 12),
-  strip.text = element_text(size = 14)
-)
-
-# Apply the theme globally
-theme_set(custom_theme)
-
 # Function to wrap text
 wrap_text <- function(x, width) {
   sapply(str_wrap(x, width = width), paste, collapse = "\n")
@@ -68,6 +55,7 @@ pivot_and_clean <- function(data, pattern, value_name) {
     mutate(var = str_replace(var, "\\.[^\\.]*$", "")) # Search backward to last dot and remove extension
 }
 
+# Create long combined dataset
 df <- path_list[[1]]
 slope_df <- pivot_and_clean(df, "slope", "slope")
 pval_df <- pivot_and_clean(df, ".p", "p_val")
@@ -78,45 +66,141 @@ final_df <- left_join(slope_df, pval_df, by = c("var", "ensembl_id")) %>%
   left_join(fdr_df, by = c("var", "ensembl_id")) %>%
   left_join(gene_info_df, by = "ensembl_id")
 
+# Filter ug/protein var
+final_df <- final_df %>%
+  filter(str_detect(var, "protein", negate = TRUE))
+
 # Remove combined correlations and separate the vars
 final_df <- final_df %>%
   filter(!str_detect(var, "^Deep_and_SC")) %>%
-  separate(var, into = c("tissue", "var"), sep = "\\.")
+  separate(var, into = c("tissue", "var"), sep = "\\.") %>%
+  mutate(tissue = case_when(
+    tissue == "SC" ~ "Subcutaneous",
+    TRUE ~ tissue
+  ))
+```
+
+# --- Assign complete var names
+```{r}
+var_labels <- data.frame(
+  "var" = c("T3_per_mg_tissue", "T4_per_mg_tissue", "T3_per_mcg_protein", "T4_per_mcg_protein", "TSH", "FreeT4", "FreeT3"),
+  "var_labels" = c("T3 nM/mg of tissue", "T4 nM/mg of tissue", "T3 nM/μg of protein", "T4 nM/μg of protein", "Serum TSH (mIU/L)", "Serum Free T4 (ng/dL)", "Serum Free T3 (pg/dL)")
+)
+
+final_df <- final_df %>%
+  left_join(var_labels, by = "var")
 ```
 
 
+# --- Define the gens to plot ---
 ```{r}
-plot_data <- final_df %>%
-  filter(symbol%in% c("UCP1", "PPARGC1A", "CKMT1")) %>%
-  mutate(
-    significance = FDR < 0.50,
-    stroke_width = ifelse(significance, 1.5, 0.3),
-    significance_label = ifelse(significance, "FDR < 0.05", "Not Significant"),
-    rounded_slope = round(slope, 2)  # round to 2 decimal places
-  )
+# #List of thermogenic genes from kegg
+# genes_to_show <- c(
+#   "ADRB3",
+# "GNAS", "ADCY1", "ADCY2", "ADCY3", "ADCY4", "ADCY5", "ADCY6", "ADCY7", "ADCY8", "ADCY9", "ADCY10", "PRKACA", "PRKACB", "PRKACG", "CREB1", "CREB3", "CREB3L1", "CREB3L2", "CREB3L3", "CREB3L4", "CREB5", "PRDM16", "ZNF516", "KDM1A", "UCP1", "KDM3A", "KDM3B", "SMARCA2", "SMARCA4", "SMARCB1", "SMARCC1", "SMARCC2", "SMARCD1", "SMARCD2", "SMARCD3", "SMARCE1", "ACTG1", "ACTB", "ACTL6A", "ACTL6B", "ARID1B", "ARID1A", "DPF1", "DPF3", "PPARG", "MAP3K5", "MAP2K3", "MAPK11", "MAPK12", "MAPK13", "MAPK14", "PPARGC1A", "ATF2", "SIRT6", "FGF21","PLIN1", "LIPE", "PNPLA2", "MGLL", "PRKAA1", "PRKAA2", "PRKAB1", "PRKAB2", "PRKAG1", "PRKAG3", "PRKAG2", "GCG", "BMP8B", "BMP8A", "CNR1", "NPPA", "NPPB", "NPR1", "PRKG1", "PRKG2", "KLB", "FGFR1", "FRS2", "GRB2", "SOS1", "SOS2", "HRAS", "KRAS", "NRAS", "RPS6KA3", "RPS6KA1", "RPS6KA2", "RPS6KA6", "TSC1", "TSC2", "RHEB", "RPTOR", "MTOR", "MLST8", "AKT1S1", "RPS6KB1", "RPS6KB2", "RPS6", "ACSL6", "ACSL4", "ACSL1", "ACSL5", "ACSL3", "ND1", "ND2", "ND3", "ND4", "ND4L", "ND5", "ND6", "NDUFS1", "NDUFS2", "NDUFS3", "NDUFS4", "NDUFS5", "NDUFS6", "NDUFS7", "NDUFS8", "NDUFV1", "NDUFV2", "NDUFV3", "NDUFA1", "NDUFA2", "NDUFA3", "NDUFA4", "NDUFA4L2", "NDUFA5", "NDUFA6", "NDUFA7", "NDUFA8", "NDUFA9", "NDUFA10", "NDUFAB1", "NDUFA11", "NDUFA12", "NDUFA13", "NDUFB1", "NDUFB2", "NDUFB3", "NDUFB4", "NDUFB5", "NDUFB6", "NDUFB7", "NDUFB8", "NDUFB9", "NDUFB10", "NDUFB11", "NDUFC1", "NDUFC2", "NDUFC2-KCTD14", "NDUFAF1", "NDUFAF2", "NDUFAF3", "NDUFAF4", "NDUFAF5","NDUFAF6", "NDUFAF7", "NDUFAF8", "SDHA", "SDHB", "SDHC", "SDHD", "UQCRFS1", "CYTB", "CYC1", "UQCRC1", "UQCRC2", "UQCRH", "UQCRHL", "UQCRB", "UQCRQ", "UQCR10", "UQCR11", "COX1", "COX2", "COX3", "COX4I2", "COX4I1",
+#   "COX5A"
+# )
 
-p <- ggplot(plot_data, aes(x = var, y = symbol)) +
+# Selected thermogenic genes
+genes_to_show <- c(
+  "TSHR", # TSH receptor
+  "THRA", # Thyroid hormone receptor alpha
+  "THRB", # Thyroid hormone receptor beta
+  "SLC16A10",
+  "SLC16A2",
+  "UCP1", # Uncoupling protein 1
+  "ADRB3", # Beta-3 adrenergic receptor
+  "PRDM16",
+  "EBF2",
+  "PPARGC1A",
+  "DIO1", # Deiodinase 1
+  "DIO2", # Deiodinase 2
+  "DIO3", # Deiodinase 3
+  "CKMT1A",
+  "CKMT2",
+  "CKB",
+  "SLC6A8",
+  "ALPL"
+)
+```
+
+# --- Format plotting information
+```{r}
+threshold <- 0.05
+# --- Filter for genes of interest
+plot_data <- final_df %>%
+  filter(symbol %in% genes_to_show) %>%
+  mutate(
+    significance = FDR < threshold,
+    stroke_width = ifelse(significance, 0.5, 0.1),
+    significance_label = ifelse(significance, paste0("FDR < ", threshold), "Not Significant"),
+    significance_color = ifelse(significance_label == "Not Significant", "grey75", "black"),
+    rounded_slope = round(slope, 2) # round to 2 decimal places
+  )
+# --- Determine nrows for size adjustment when saving
+plot_nrow <- plot_data %>%
+  distinct(ensembl_id) %>%
+  nrow()
+
+# --- Adjust axis labels
+# Y Label: Create a unique mapping: ensembl_id -> gene symbol.
+y_axis_text <- final_df %>%
+  filter(symbol %in% genes_to_show) %>%
+  distinct(ensembl_id, symbol) %>%
+  deframe() # turns into a named vector (names are ensembl_ids)
+
+# --- Adjust stroke color
+stroke_color <- plot_data %>%
+  distinct(significance_label, significance_color) %>%
+  deframe() # turns into a named vector (names are ensembl_ids)
+```
+
+```{r}
+p <- ggplot(plot_data, aes(x = var_labels, y = ensembl_id)) +
   geom_point(
-    aes(fill = slope, stroke = stroke_width), 
-    shape = 21, color = "black", size = 3.5
+    aes(fill = slope, stroke = stroke_width, colour = significance_label),
+    shape = 21, size = 3.5
   ) +
   geom_text(
-    aes(label = rounded_slope), 
-    size = 3/2.81, 
-    color = "black", 
+    aes(label = rounded_slope),
+    size = 3 / 2.81,
+    color = "black",
     fontface = "bold"
   ) +
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  theme_pubr() +
+  scale_fill_gradient2(low = "royalblue", mid = "white", high = "red", midpoint = 0) +
+  scale_color_manual(
+    values = stroke_color, # Only include significant one
+    name = "Significance"
+  ) +
+  scale_y_discrete(labels = y_axis_text) +
+  theme_pubr(
+    base_size = 6,
+    base_family = "Arial"
+  ) +
   theme(
-    base_size = 6, 
-    base_family = "Arial", 
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    strip.background = element_rect(fill = "white", color = "white")
+  ) +
+  theme(
+    legend.position = "top",
+    legend.key.size = unit(2, "mm"),
+    legend.text = element_text(size = 4),
+    legend.title = element_text(size = 5),
+    axis.line = element_line(size = 0.3) # smaller = thinner lines
+  ) +
+  labs(
+    y = NULL,
+    x = NULL
   )
 
+p <- p + facet_wrap(vars(tissue))
 p
-
 # Save plot
 scale <- 90
-ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create.dir = T, plot = p, device = "png", width = 1 * scale, height = 1 * scale, units = "mm", dpi = 600, bg = "white")
+ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create.dir = T, plot = p, device = "png", width = 1 * scale, height = (1 + 0.01 * plot_nrow) * scale, units = "mm", dpi = 600, bg = "white")
+```
+# --- Create summary table to save
+```{r}
+write.csv(plot_data, "../output/4 - Figures and Analysis/filtered_gene_correlations.csv")
+write.csv(final_df, "../output/4 - Figures and Analysis/gene_correlations.csv")
 ```
