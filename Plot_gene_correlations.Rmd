@@ -207,6 +207,16 @@ ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create
 
 # --- Create summary table to save
 ```{r}
-write.csv(plot_data, "../output/4 - Figures and Analysis/filtered_gene_correlations.csv")
-write.csv(final_df, "../output/4 - Figures and Analysis/gene_correlations.csv")
+write.csv(
+  plot_data %>%
+    select(-c(var_labels, significance, stroke_width, significance_color, rounded_slope)),
+  "../output/4 - Figures and Analysis/filtered_gene_correlations.csv",
+  row.names = FALSE
+)
+write.csv(
+  final_df %>%
+    select(-var_labels),
+  "../output/4 - Figures and Analysis/gene_correlations.csv",
+  row.names = FALSE
+)
 ```
