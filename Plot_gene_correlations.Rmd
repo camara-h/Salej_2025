@@ -34,19 +34,17 @@ format_text <- function(text) {
 }
 ```
 
-## Introduction
-
-
-2) Extract the pathway name, significance and direction for each correlation. This will tell us for each covariate, what are the consistent changes.
+# --- Load data
 ```{r}
+# Load and assign rownames to column
 path_list <- list(
-  Covar_adjusted = read.csv("../data/BMI_temp_covars/gene_stats.csv", row.names = 1)
+  Covar_adjusted = read.csv("../data/neck_fat_rnaseq_adj_covars//gene_stats.csv", row.names = 1)
 )
 
-path_list[[1]]
 path_list[[1]] <- path_list[[1]] %>% rownames_to_column("ensembl_id")
 ```
 
+# --- Make long dataset and format values
 ```{r}
 pivot_and_clean <- function(data, pattern, value_name) {
   data %>%
@@ -66,7 +64,7 @@ final_df <- left_join(slope_df, pval_df, by = c("var", "ensembl_id")) %>%
   left_join(fdr_df, by = c("var", "ensembl_id")) %>%
   left_join(gene_info_df, by = "ensembl_id")
 
-# Filter ug/protein var
+# Filter out ug/protein var
 final_df <- final_df %>%
   filter(str_detect(var, "protein", negate = TRUE))
 
@@ -80,15 +78,18 @@ final_df <- final_df %>%
   ))
 ```
 
+
 # --- Assign complete var names
 ```{r}
+# Select the vars of interest and create full name column
 var_labels <- data.frame(
   "var" = c("T3_per_mg_tissue", "T4_per_mg_tissue", "T3_per_mcg_protein", "T4_per_mcg_protein", "TSH", "FreeT4", "FreeT3"),
   "var_labels" = c("T3 nM/mg of tissue", "T4 nM/mg of tissue", "T3 nM/μg of protein", "T4 nM/μg of protein", "Serum TSH (mIU/L)", "Serum Free T4 (ng/dL)", "Serum Free T3 (pg/dL)")
 )
 
 final_df <- final_df %>%
-  left_join(var_labels, by = "var")
+  left_join(var_labels, by = "var") %>%
+  filter(!is.na(var_labels)) # remove variables that are not expliclty named
 ```
 
 
@@ -136,7 +137,9 @@ plot_data <- final_df %>%
     significance_label = ifelse(significance, paste0("FDR < ", threshold), "Not Significant"),
     significance_color = ifelse(significance_label == "Not Significant", "grey75", "black"),
     rounded_slope = round(slope, 2) # round to 2 decimal places
-  )
+  ) %>%
+  filter(!is.na(var_labels))
+
 # --- Determine nrows for size adjustment when saving
 plot_nrow <- plot_data %>%
   distinct(ensembl_id) %>%
@@ -155,6 +158,7 @@ stroke_color <- plot_data %>%
   deframe() # turns into a named vector (names are ensembl_ids)
 ```
 
+# --- Plot
 ```{r}
 p <- ggplot(plot_data, aes(x = var_labels, y = ensembl_id)) +
   geom_point(
@@ -199,6 +203,8 @@ p
 scale <- 95
 ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create.dir = T, plot = p, device = "png", width = 1 * scale, height = (1 + 0.01 * plot_nrow) * scale, units = "mm", dpi = 600, bg = "white")
 ```
+
+
 # --- Create summary table to save
 ```{r}
 write.csv(plot_data, "../output/4 - Figures and Analysis/filtered_gene_correlations.csv")
