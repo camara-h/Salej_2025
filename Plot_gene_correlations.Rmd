@@ -171,7 +171,7 @@ p <- ggplot(plot_data, aes(x = var_labels, y = ensembl_id)) +
     color = "black",
     fontface = "bold"
   ) +
-  scale_fill_gradient2(low = "royalblue", mid = "white", high = "red", midpoint = 0) +
+  scale_fill_gradient2(low = "royalblue", mid = "white", high = "firebrick2", midpoint = 0) +
   scale_color_manual(
     values = stroke_color, # Only include significant one
     name = "Significance"
