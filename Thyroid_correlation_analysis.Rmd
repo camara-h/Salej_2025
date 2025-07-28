@@ -10,6 +10,7 @@ library(openxlsx)
 library(tidyverse)
 library(ggplot2)
 library(ggpubr)
+library(patchwork)
 
 # Formatting the metadata
 meta <- read.xlsx("../data/Metadata_for_correlation.xlsx")
@@ -72,16 +73,16 @@ if (use_log10_TSH) {
   combinations <- data.frame(
     x = c("log10_Serum_TSH", "log10_Serum_TSH", "Serum_Free_T4"),
     y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"),
-    x_label = c("log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]", "Serum-free T4 (ng/dL)"),
-    y_label = c("Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)", "Serum-free T3 (pg/dL)")
+    x_label = c("log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]", "Serum Free T4 (ng/dL)"),
+    y_label = c("Serum Free T4 (ng/dL)", "Serum Free T3 (pg/dL)", "Serum Free T3 (pg/dL)")
   )
 } else {
   # Define combination to plot with non-transformed TSH
   combinations <- data.frame(
     x = c("Serum_TSH", "Serum_TSH", "Serum_Free_T4"),
     y = c("Serum_Free_T4", "Serum_Free_T3", "Serum_Free_T3"),
-    x_label = c("Serum TSH (mIU/L)", "Serum TSH (mIU/L)", "Serum-free T4 (ng/dL)"),
-    y_label = c("Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)", "Serum-free T3 (pg/dL)")
+    x_label = c("Serum TSH (mIU/L)", "Serum TSH (mIU/L)", "Serum Free T4 (ng/dL)"),
+    y_label = c("Serum Free T4 (ng/dL)", "Serum Free T3 (pg/dL)", "Serum Free T3 (pg/dL)")
   )
 }
 
@@ -158,7 +159,7 @@ subjects_to_keep <- c(2, 4, 6, 7, 8, 11, 13, 14, 15, 16)
 plot.meta <- meta
 plot.meta$Serum_Free_T3 <- as.numeric(plot.meta$Serum_Free_T3)
 plot.meta <- plot.meta %>%
-  filter(Donor_ID %in% as.character(tyroid_at_surgery_patients))
+  filter(Donor_ID %in% as.character(subjects_to_keep))
 names(plot.meta)
 ```
 
@@ -171,7 +172,7 @@ if (use_log10_TSH) {
     y = c("T3_mg.tissue", "T4_mg.tissue", "T4_mg.tissue", "T3_mg.tissue"),
     x_label = c(
       "log10[Serum TSH (mIU/L)]", "log10[Serum TSH (mIU/L)]",
-      "Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)"
+      "Serum Free T4 (ng/dL)", "Serum Free T3 (pg/dL)"
     ),
     y_label = c(
       "T3 nM/mg of tissue", "T4 nM/mg of tissue",
@@ -185,7 +186,7 @@ if (use_log10_TSH) {
     y = c("T3_mg.tissue", "T4_mg.tissue", "T4_mg.tissue", "T3_mg.tissue"),
     x_label = c(
       "Serum TSH (mIU/L)", "Serum TSH (mIU/L)",
-      "Serum-free T4 (ng/dL)", "Serum-free T3 (pg/dL)"
+      "Serum Free T4 (ng/dL)", "Serum Free T3 (pg/dL)"
     ),
     y_label = c(
       "T3 nM/mg of tissue", "T4 nM/mg of tissue",
@@ -277,7 +278,4 @@ scale <- 100
 ggsave(paste0("../output/3 - Figures and Analysis/figures/Figure_3", save_suffix, ".png"), create.dir = T, plot = final_plot, device = "png", width = 1 * scale, height = 1 * scale, units = "mm", dpi = 600, bg = "white")
 ```
 
-```{r}
-styler::style_dir()
-```
 

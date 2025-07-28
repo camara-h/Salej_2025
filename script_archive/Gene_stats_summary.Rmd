@@ -70,7 +70,6 @@ path_list <- list(
 )
 
 path_list[[1]]
-
 ```
 
 
