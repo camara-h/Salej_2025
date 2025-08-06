@@ -60,184 +60,6 @@ sentence_case <- function(text) {
 }
 ```
 
-## Introduction
-
-With the JBC, we performed a series of correlation and pathway analysis using distinct covariate adjustments.
-in order to summarize which results were consistenly observed in each one of these analysis, I propose to create a series of dotplots.
-
-To achieve this objective I will:
-
-1)go over the reactome file in each one of the analysis
-
-
-```{r}
-# Get the current working directory
-current_directory <- getwd()
-print(paste("Current working directory:", current_directory))
-
-# List all directories within the current working directory, excluding the root directory itself
-directories <- list.dirs()[-1]
-print("Directories in the current working directory:")
-# print(directories)
-```
-2) Extract the pathway name, significance and direction for each correlation. This will tell us for each covariate, what are the consistent changes.
-```{r}
-# Function to safely read a CSV file and return NULL if there's an error
-safe_read_csv <- function(file_path) {
-  tryCatch(
-    {
-      read.csv(file_path, row.names = 1)
-    },
-    error = function(e) {
-      warning(paste("Error reading file:", file_path))
-      NULL
-    }
-  )
-}
-
-# Define a list containing data frames read from CSV files
-path_list <- list(
-  HypoHyper = safe_read_csv("./HypoHyper_weight/reactome_gsea.csv"),
-  UCP1 = safe_read_csv("./UCP1_weight/reactome_gsea.csv"),
-  NoAdjustment = safe_read_csv("./No_weight/reactome_gsea.csv")
-)
-
-# Print a message to confirm successful creation of the list
-print("Path list created successfully.")
-```
-
-Reading BMI adjusted
-
-```{r}
-# Define a function to format text (ensure this is defined elsewhere in your code)
-format_text <- function(text) {
-  # Convert text to uppercase
-  text_upper <- str_to_upper(text)
-
-  # Replace special characters with underscores
-  text_clean <- str_replace_all(text_upper, "[^A-Z0-9]", "_")
-  text_clean <- gsub("__", "_", text_clean) # Replace potential double underscores created
-
-  return(text_clean)
-}
-
-# Path to the Excel file
-path <- "./BMI_temp_covars/reactome_gsea.xlsx"
-
-path <- "../data/BMI_temp_covars/reactome_gsea.xlsx"
-sheet_names <- getSheetNames(path)
-
-sheets <- lapply(sheet_names, function(sheet) {
-  df <- read.xlsx(path, sheet = sheet)
-  df$Cluster <- sheet
-  df$Description <- format_text(df$Description)
-  return(df)
-})
-
-names(sheets) <- sheet_names
-BMI_temp <- bind_rows(sheets)
-path_list[["BMI_temp"]] <- BMI_temp
-rm(BMI_temp)
-```
-
-
-```{r}
-library(dplyr)
-
-# Process each data frame in the list
-for (adjust in names(path_list)) {
-  # Create a column to store the origin of the file
-  path_list[[adjust]] <- path_list[[adjust]] %>%
-    mutate(Adjustment = adjust)
-
-  if (adjust == "BMI_temp") {
-    # Get the top 5 pathways based on the smallest p.adjust values for BMI_temp
-    path_list[[adjust]] <- path_list[[adjust]] %>%
-      select(Cluster, Description, NES, p.adjust, Adjustment) %>% # Select the columns of interest
-      group_by(Cluster) %>% # Group by the co-variate
-      arrange(p.adjust)
-  } else {
-    # Filter to keep only the smallest p-values from each Cluster
-    path_list[[adjust]] <- path_list[[adjust]] %>%
-      select(Cluster, Description, NES, p.adjust, Adjustment) %>% # Select the columns of interest
-      group_by(Cluster) %>% # Group by the co-variate
-      # filter(p.adjust == min(p.adjust))  # Keep only the smallest p-values
-      ungroup()
-  }
-}
-
-# Merge all data frames in the list
-merged.df <- bind_rows(path_list)
-
-# Remove trailing underscores from the Description column
-merged.df$Description <- sub("_+$", "", merged.df$Description)
-
-# View or further process merged.df as needed
-print(merged.df)
-```
-
-3) Plot those in a DotPlot.
-```{r}
-library(ggplot2)
-library(dplyr)
-library(stringr)
-
-# Define date prefix
-date_prefix <- format(Sys.Date(), "%Y-%m-%d")
-
-# Identify shared paths and covariates
-shared_paths <- merged.df %>%
-  filter(duplicated(Description)) %>%
-  slice_head(n = 5) %>%
-  pull(Description)
-
-covars <- unique(merged.df$Cluster)
-
-# Calculate min and max values for -log10(p.adjust)
-min_neg_log_padj <- min(-log10(merged.df$p.adjust))
-max_neg_log_padj <- max(-log10(merged.df$p.adjust))
-
-# Create output directory if it does not exist
-output_dir <- "./figures/"
-dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-
-# Create PDF to save plots with date prefix
-pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_top_padj.pdf")), width = 12, height = 6)
-
-# Loop through each covariate and generate plots
-for (covar in covars) {
-  plot.data <- merged.df %>% filter(Cluster == covar)
-
-  # Order by average NES
-  plot.data <- plot.data %>%
-    group_by(Description) %>%
-    mutate(Avg.NES = mean(NES)) %>%
-    ungroup() %>%
-    arrange(desc(Avg.NES))
-
-  # Create plot
-  p <- ggplot(plot.data, aes(Adjustment, Description)) +
-    geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
-    scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
-    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-    scale_y_discrete(limits = rev(unique(plot.data$Description))) +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(title = covar)
-
-  # Print plot to PDF
-  print(p)
-
-  # Save plot as PNG with date prefix
-  ggsave(
-    filename = file.path(output_dir, "GSEA_DotPlot", date_prefix, paste0(date_prefix, "_", covar, "_GSEA_summary_top_padj.png")),
-    plot = p, device = "png", width = 12, height = 6, units = "in", dpi = 300, create.dir = T
-  )
-}
-
-# Close the PDF device
-dev.off()
-```
-
 # Paper figures
 The analysis above was useful to summarize data.
 After discussion we decided to use the adjusted analysis as our main reference point. Thus, plots will be centered towards that.
@@ -438,7 +260,7 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 #### Plotting thermogenic pathways==================================
 # Create PDF to save plots with date prefix
-pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_thermo.pdf")), width = 12, height = 6)
+# pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_thermo.pdf")), width = 12, height = 6)
 
 
 # Loop through each covariate and generate plots
@@ -507,14 +329,14 @@ for (covar in covars) {
   # Print plot to PDF
   print(g)
   # Save plot as PNG with date prefix
-  ggsave(
-    filename = file.path(output_dir, "Alphabetical_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
-    plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
-  )
+  # ggsave(
+  #   filename = file.path(output_dir, "Alphabetical_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
+  #   plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
+  # )
 }
 
 # Close the PDF device
-dev.off()
+# dev.off()
 ```
 #### Plot all covariates side by side
 ```{r}
@@ -757,45 +579,204 @@ dev.off()
 covar_data %>% filter(Description == "CREATINE_METABOLISM")
 ```
 
+#### Plot all covariates side by side
+```{r}
+# Define widht and heigth of plots
+w <- 12
+h <- 5
 
-<!-- #[DEPRECATED] This is kept historically here in case we want to use it in the future -->
-<!-- ```{r} -->
-<!-- n_top = 10 #Determine how many top genes you want to include -->
-<!-- covars = unique(covar_data$Cluster) -->
-<!-- covars = covars[!grepl("Deep_and_SC", covars)] #Remove the Deep and SC analysis -->
+# Create output directory if it does not exist
+output_dir <- paste0("./figures/Paper_figures/DotPlot/DEEP_SC_Thermogenic_pathways/ALL")
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-<!-- for(covar in covars){ -->
-<!-- plot.data = covar_data %>% filter(Cluster == covar) -->
+#### Plotting thermogenic pathways==================================
+# # Create PDF to save plots with date prefix
+# pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_thermo.pdf")), width = 12, height = 6)
 
-<!-- #Ordering with positives first -->
-<!-- pos_nes = plot.data %>% filter(NES > 0) %>% arrange(p.adjust) %>% slice_head(n = n_top) -->
-<!-- neg_nes = plot.data %>% filter(NES < 0) %>% arrange(desc(p.adjust)) %>% slice_tail(n = n_top) -->
-<!-- plot.data = rbind(pos_nes, neg_nes)  -->
 
-<!-- min(-log10(plot.data$p.adjust)) -->
-<!-- max(-log10(plot.data$p.adjust)) -->
+# Loop through each covariate and generate plots
+plot.data <- f.covar_data %>% filter(Description %in% thermo_paths) # Filter for the thermogenic pathways
+# head(plot.data)
 
-<!-- # Convert DotPlot to Barplot -->
-<!-- g <- ggplot(plot.data, aes(x = NES, y = reorder(Description, NES))) +  # Reorder y-axis based on NES -->
-<!--   geom_bar(stat = "identity", aes(fill = NES), color = "black") + -->
-<!--   geom_text(aes(label = wrap_text(Description, width = 10)), -->
-<!--             size = 2,  -->
-<!--             hjust = ifelse(plot.data$NES > 0, 1.1, -0.1),  # Adjust text position based on NES sign -->
-<!--             color = "white") +  # White color for better visibility -->
-<!--    -->
-<!--   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) + -->
-<!--   theme(axis.text.x = element_text(angle = 0, hjust = 1), -->
-<!--         axis.title.y = element_blank(),  # Remove y-axis title -->
-<!--         axis.ticks.y = element_blank(), -->
-<!--         axis.text.y = element_blank()) + # Remove y-axis ticks for cleaner look -->
-<!--   labs(title = covar, x = "Normalized Enrichment Score (NES)") + -->
-<!--   guides(fill = "none") -->
+plot.data <- plot.data %>%
+  filter(!Covariate %in% c("T4_per_mcg_protein", "T3_per_mcg_protein")) %>%
+  mutate(Covariate = case_when(
+    Covariate == "FreeT4" ~ "Serum Free T4",
+    Covariate == "T4_per_mcg_protein" ~ "T4/μg of protein",
+    Covariate == "T3_per_mcg_protein" ~ "T3/μg of protein",
+    Covariate == "T4_per_mg_tissue" ~ "T4/mg of tissue",
+    Covariate == "T3_per_mg_tissue" ~ "T3/mg of tissue",
+    Covariate == "FreeT3" ~ "Serum Free T3",
+    Covariate == "HYPERvsHYPO" ~ "Hyperthyroidism vs Hypothyroidism",
+    Covariate == "TSH" ~ "Serum TSH"
+  ))
 
-<!-- # Print the plot -->
-<!-- print(g) -->
+# Order with positives first
+pos_nes <- plot.data %>%
+  filter(NES >= 0) %>%
+  arrange(p.adjust)
+neg_nes <- plot.data %>%
+  filter(NES < 0) %>%
+  arrange(desc(p.adjust))
 
-<!-- ggsave(paste0("./figures/BarGraph/",covar,"_GSEA_summary_top_padj.png"), device = "png", width = 6, height = 6, plot = g, units = "in", dpi = 300) -->
-<!-- } -->
-<!-- ``` -->
+plot.data <- bind_rows(pos_nes, neg_nes)
+
+# Calculate min and max for -log10(p.adjust)
+min_neg_log_padj <- min(-log10(plot.data$p.adjust))
+max_neg_log_padj <- max(-log10(plot.data$p.adjust))
+
+############################
+# Order Covariate
+desired_order <- c("Serum TSH", "Serum Free T4", "Serum Free T3", "T4/mg of tissue", "T3/mg of tissue", "Hyperthyroidism vs Hypothyroidism") # Replace with your actual facet levels
+plot.data$Covariate <- factor(plot.data$Covariate, levels = desired_order)
+
+plot.data$Description <- gsub("_", " ", plot.data$Description)
+```
+
+# --- Format plotting information
+```{r}
+threshold <- 0.05
+# --- Filter for genes of interest
+plot_data <- plot.data %>%
+  mutate(
+    significance = p.adjust < threshold,
+    stroke_width = ifelse(significance, 0.5, 0.1),
+    significance_label = ifelse(significance, paste0("FDR < ", threshold), "Not Significant"),
+    significance_color = ifelse(significance_label == "Not Significant", "grey75", "black"),
+    rounded_NES = round(NES, 2) # round to 2 decimal places
+
+    ) 
+
+# --- Determine nrows for size adjustment when saving
+plot_nrow <- plot_data %>%
+  distinct(Description) %>%
+  nrow()
+
+# --- Adjust stroke color
+stroke_color <- plot_data %>%
+  distinct(significance_label, significance_color) %>%
+  deframe() # turns into a named vector (names are ensembl_ids)
+```
+
+```{r}
+# Create plot ordered by NES
+g <- ggplot(plot_data, aes(Tissue, Description)) +
+  geom_point(
+    aes(fill = NES, stroke = stroke_width, colour = significance_label),
+    shape = 21, size = 3.5
+  ) +
+  geom_text(
+    aes(label = rounded_NES),
+    size = 3 / 2.81,
+    color = "black",
+    fontface = "bold"
+  ) +
+  scale_fill_gradient2(low = "royalblue", mid = "white", high = "firebrick2", midpoint = 0) +
+  scale_color_manual(
+    values = stroke_color, # Only include significant one
+    name = "Significance"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    strip.background = element_blank()
+  ) +
+  theme(
+    legend.position = "top",
+    legend.key.size = unit(2, "mm"),
+    legend.text = element_text(size = 4),
+    legend.title = element_text(size = 5),
+    axis.line = element_line(size = 0.3) # smaller = thinner lines
+  ) 
+g
+g <- g + facet_wrap(vars(Covariate), ncol = length(unique(plot_data$Description)))
+g
+
++
+  geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, stroke = 0.5) +
+  facet_grid(. ~ Covariate,
+    scales = "free_x", space = "free_x",
+    labeller = labeller(Covariate = function(x) str_wrap(x, width = 15))
+  ) + # Wrap facet labels
+  # Add asterisks for p.adjust < 0.05
+  geom_text(
+    data = plot.data %>% filter(p.adjust < 0.05),
+    aes(label = "*"),
+    color = "black",
+    size = 6,
+    vjust = 0
+  ) + # Adjust the position of the asterisk
+  scale_y_discrete(labels = function(x) str_wrap(x, width = 10)) + # Wrap y-axis labels
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  scale_y_discrete(limits = rev(unique(plot.data$Description))) +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
+    axis.text.y = element_text(size = 14), # Increase y-axis text size
+    axis.title.x = element_blank(), # Remove x-axis title
+    axis.title.y = element_blank(), # Remove y-axis title
+    plot.title = element_text(size = 20, face = "bold", hjust = 0.5), # Center and increase title size
+    legend.text = element_text(size = 12), # Increase legend text size
+    legend.title = element_text(size = 14), # Increase legend title size
+    strip.text.x = element_text(size = 12, face = "bold", margin = margin(b = 10, t = 10)) # Style for facet labels with spacing
+  ) +
+  labs(title = "Thermogenesis-related pathways")
+
+# Print plot to PDF
+print(g)
+
+# Save plot as PNG with date prefix
+ggsave(
+  filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
+  plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
+)
+
+# # Close the PDF device
+# dev.off()
+```
+
+# --- Plot
+```{r}
+p <- ggplot(plot_data, aes(x = var_labels, y = ensembl_id)) +
+  geom_point(
+    aes(fill = slope, stroke = stroke_width, colour = significance_label),
+    shape = 21, size = 3.5
+  ) +
+  geom_text(
+    aes(label = rounded_slope),
+    size = 3 / 2.81,
+    color = "black",
+    fontface = "bold"
+  ) +
+  scale_fill_gradient2(low = "royalblue", mid = "white", high = "firebrick2", midpoint = 0) +
+  scale_color_manual(
+    values = stroke_color, # Only include significant one
+    name = "Significance"
+  ) +
+  scale_y_discrete(labels = y_axis_text) +
+  theme_pubr(
+    base_size = 6,
+    base_family = "Arial"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+    strip.background = element_rect(fill = "white", color = "white")
+  ) +
+  theme(
+    legend.position = "top",
+    legend.key.size = unit(2, "mm"),
+    legend.text = element_text(size = 4),
+    legend.title = element_text(size = 5),
+    axis.line = element_line(size = 0.3) # smaller = thinner lines
+  ) +
+  labs(
+    y = NULL,
+    x = NULL
+  )
+
+p <- p + facet_wrap(vars(tissue))
+p
+# Save plot
+scale <- 95
+ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create.dir = T, plot = p, device = "png", width = 1 * scale, height = (1 + 0.01 * plot_nrow) * scale, units = "mm", dpi = 600, bg = "white")
+```
 
 
