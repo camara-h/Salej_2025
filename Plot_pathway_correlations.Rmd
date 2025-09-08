@@ -67,6 +67,42 @@ We can check consistency in the other adjustments.
 
 To create the paper figures, I plan to get the top 10 Positive and negative associated pathways and plot them as a DotPlot, with NES on x-axis, Cluster in the Y-axis, color as p.value
 
+Reading BMI adjusted
+
+```{r}
+path_list <- list()
+# Define a function to format text (ensure this is defined elsewhere in your code)
+format_text <- function(text) {
+  # Convert text to uppercase
+  text_upper <- str_to_upper(text)
+  
+  # Replace special characters with underscores
+  text_clean <- str_replace_all(text_upper, "[^A-Z0-9]", "_")
+  text_clean <- gsub("__", "_", text_clean)  # Replace potential double underscores created
+  
+  return(text_clean)
+}
+
+# Path to the Excel file
+path <- "../data/neck_fat_rnaseq_adj_covars/reactome_gsea.xlsx"
+
+sheet_names <- getSheetNames(path)
+
+sheets <- lapply(sheet_names, function(sheet) {
+  df <- read.xlsx(path, sheet = sheet)
+  df$Cluster <- sheet
+  df$Description <- format_text(df$Description)
+  return(df)
+})
+
+read.xlsx(path)
+names(sheets) <- sheet_names
+BMI_temp <- bind_rows(sheets)
+path_list[["BMI_temp"]] <- BMI_temp
+rm(BMI_temp)
+
+```
+
 ```{r}
 # Load only the data form the covariate corrected files
 covar_data <- path_list[["BMI_temp"]]
@@ -557,10 +593,7 @@ for (covar in covars) {
     filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
     plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
   )
-  ggsave(
-    filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths_High_Res")),
-    plot = g, device = "svg", width = w, height = h, units = "in", dpi = 600, create.dir = T
-  )
+
 
 
   g_flipped <- g + coord_flip() + theme(axis.text.x = element_text(angle = 90))
@@ -689,9 +722,7 @@ g <- ggplot(plot_data, aes(Tissue, Description)) +
   ) 
 g
 g <- g + facet_wrap(vars(Covariate), ncol = length(unique(plot_data$Description)))
-g
-
-+
+g +
   geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, stroke = 0.5) +
   facet_grid(. ~ Covariate,
     scales = "free_x", space = "free_x",
@@ -716,8 +747,8 @@ g
     plot.title = element_text(size = 20, face = "bold", hjust = 0.5), # Center and increase title size
     legend.text = element_text(size = 12), # Increase legend text size
     legend.title = element_text(size = 14), # Increase legend title size
-    strip.text.x = element_text(size = 12, face = "bold", margin = margin(b = 10, t = 10)) # Style for facet labels with spacing
-  ) +
+    strip.text.x = element_text(size = 12, face = "bold", margin = margin(b = 10, t = 10))   ) +# Style for facet labels with spacing
+
   labs(title = "Thermogenesis-related pathways")
 
 # Print plot to PDF
