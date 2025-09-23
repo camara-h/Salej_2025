@@ -267,6 +267,8 @@ plot_list
 ```
 
 ```{r}
+
+mm_to_in <- function(x){x/25.4}
 # Patchwork all plots in 3 columns
 final_plot <- wrap_plots(plot_list, ncol = 3) +
   plot_annotation(tag_levels = "A") # Starts at A
@@ -277,6 +279,12 @@ save_suffix <- ifelse(use_log10_TSH, "_log10_TSH", "_raw_TSH")
 scale <- 100
 
 ggsave(paste0("../output/3 - Figures and Analysis/figures/Figure_3", save_suffix, ".png"), create.dir = T, plot = final_plot, device = "png", width = 1 * scale, height = 1 * scale, units = "mm", dpi = 600, bg = "white")
+
+pdf(paste0("../output/3 - Figures and Analysis/figures/Figure_3", save_suffix, ".pdf"), , width = mm_to_in(1 * scale), height = mm_to_in(1 * scale))
+final_plot
+dev.off()
+
+
 ```
 
 

@@ -17,7 +17,7 @@ library(tidyverse)
 #Running updated DESEq2
 ```{r}
 # Running DESeq2
-cts <- readRDS(file = "./tx2gene_counts.rds")
+cts <- readRDS(file = "../data/tx2gene_counts.rds")
 cts <- round(cts)
 str(cts)
 
@@ -68,7 +68,7 @@ write.csv(resDF, file = "DESeq2_results.csv")
 ```
 
 ```{r}
-cpm_matrix <- read.csv("./logCPM_for_plotting.csv", row.names = 1)
+cpm_matrix <- read.csv("../data/logCPM_for_plotting.csv", row.names = 1)
 ```
 
 ```{r}
@@ -106,7 +106,7 @@ if (!requireNamespace("ggplot2", quietly = TRUE)) {
 library(ggplot2)
 
 # Load resDF again
-resDF <- read.csv("DESeq2_results.csv")
+resDF <- read.csv("../data/DESeq2_results.csv")
 
 # Create a new column for significance
 resDF$significance <- "Not Significant"
@@ -136,7 +136,7 @@ saveRDS(rlog_counts, file = "rlog_transformed_counts.rds")
 
 ```{r}
 # Load file
-rlog_counts <- readRDS("rlog_transformed_counts.rds")
+rlog_counts <- readRDS("../data/rlog_transformed_counts.rds")
 
 # Extract matrix for heatmap
 heatmap_matrix <- assay(rlog_counts)
@@ -147,7 +147,7 @@ heatmap_matrix <- assay(rlog_counts)
 ```{r}
 # Specify genes of interest
 # Load resDF again
-resDF <- read.csv("DESeq2_results.csv")
+resDF <- read.csv("../data/DESeq2_results.csv")
 resDF <- resDF %>% mutate(gene = case_when(
   !str_detect(gene, "[A-Za-z0-9]") ~ Ensembl_gene,
   TRUE ~ gene
@@ -249,7 +249,7 @@ genes_of_interest <- genes_of_interest[genes_of_interest %in% resDF$gene]
 
 ```{r}
 # Load the DESEQ2 object
-dds <- readRDS("DESeq2_object.rds")
+dds <- readRDS("../data/DESeq2_object.rds")
 
 # Extract normalized counts from DESeq2 object
 norm_counts <- counts(dds, normalized = TRUE)
@@ -260,7 +260,7 @@ norm_counts <- log10_norm_counts
 
 ```{r}
 # Load resDF again
-resDF <- read.csv("DESeq2_results.csv")
+resDF <- read.csv("../data/DESeq2_results.csv")
 
 resDF %>% filter(gene %in% c("DIO3", "THRB", "CKB"))
 rm(gene)
@@ -575,6 +575,7 @@ fdr_vals
 ```{r}
 variables
 
+names(plots) <- gsub("\\.", "_", names(plots))
 ordered_plot_names <- list(
   c("T3_μg_protein", "T4_μg_protein", "T3_mg_tissue", "T4_mg_tissue"),
   c("TSHR", "THRA", "THRB"),
@@ -612,6 +613,17 @@ library(patchwork)
 final_plot <- wrap_plots(tagged_ordered_plots, ncol = max_cols)
 
 ggsave("./figures/Paper_figures/Figure_3/DESeq_Panel.png", plot = final_plot, width = 4, height = 8, scale = 1.7, units = "in", dpi = 600, bg = "whitesmoke")
+
+ggsave("../output/2 - Figures and Analysis/figures/Figure_2_deseq_genes.png", plot = final_plot, width = 4, height = 8, scale = 1.7, units = "in", dpi = 600, bg = "white")
+
+pdf("../output/2 - Figures and Analysis/figures/Figure_2_deseq_genes.pdf", width = 4*1.7, height = 8*1.7)
+final_plot
+dev.off()
+
+ggsave("../output/2 - Figures and Analysis/figures/Figure_2_deseq_genes.pdf",
+       plot = final_plot,
+       width = 4, height = 8, scale = 1.7, units = "in", bg = "white")
+
 ```
 
 

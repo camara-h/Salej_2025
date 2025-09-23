@@ -29,12 +29,7 @@ custom_theme <- theme_bw() + theme(
 theme_set(custom_theme)
 
 
-# Function to wrap text with a specified width
-wrap_text <- function(x, width) {
-  sapply(str_wrap(x, width = width), paste, collapse = "\n")
-}
-
-# Alternative text wrapping function (commented out)
+# Alternative text wrapping function
 wrap_text <- function(x, width) {
   str_wrap(x, width = width)
 }
@@ -67,7 +62,7 @@ We can check consistency in the other adjustments.
 
 To create the paper figures, I plan to get the top 10 Positive and negative associated pathways and plot them as a DotPlot, with NES on x-axis, Cluster in the Y-axis, color as p.value
 
-Reading BMI adjusted
+# --- Reading BMI adjusted
 
 ```{r}
 path_list <- list()
@@ -323,6 +318,15 @@ for (covar in covars) {
   # Create plot ordered by NES
   g <- ggplot(plot.data, aes(Tissue, Description)) +
     geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
+      # Add asterisks for p.adjust < 0.05
+  geom_text(
+    data = plot.data %>% filter(p.adjust < 0.05),
+    aes(label = "*"),
+    color = "black",
+    size = 6,
+    vjust = 0.5,
+    hjust = 1.75
+  ) + # Adjust the position of the asterisk
     scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
     scale_y_discrete(limits = rev(unique(plot.data$Description))) +
@@ -345,6 +349,14 @@ for (covar in covars) {
     filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
     plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
   )
+  
+  ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_thermogenic_pathways.png")),
+    plot = g, device = "png", width = w, height = h, units = "in", dpi = 600, create.dir = T
+  )
+  
+  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_thermogenic_pathways.pdf")), width = w, height = h)
+
 
   # Create plot ordered alphabetically
   g <- ggplot(plot.data, aes(Tissue, Description)) +
@@ -390,7 +402,7 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
 
 # Loop through each covariate and generate plots
-plot.data <- f.covar_data %>% filter(Description %in% thermo_paths) # Filter for the thermogenic pathways
+plot.data <- f.covar_data %>% filter(Description %in% c(thermo_paths)) # Filter for the thermogenic pathways
 # head(plot.data)
 
 plot.data <- plot.data %>%
@@ -475,6 +487,8 @@ plot.data$Covariate <- factor(plot.data$Covariate, levels = desired_order)
 
 plot.data$Description <- gsub("_", " ", plot.data$Description)
 
+plot.data <- plot_data %>% filter(Covariate %in% desired_order)
+
 # Create plot ordered by NES
 g <- ggplot(plot.data, aes(Tissue, Description)) +
   geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, stroke = 0.5) +
@@ -514,8 +528,17 @@ ggsave(
   plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
 )
 
-# # Close the PDF device
-# dev.off()
+# Save plot as PNG with date prefix
+ggsave(
+  filename = file.path("../output/4 - Figures and Analysis/figures/Figure_4_thermogenesis_all_covars_dotplot.png"),
+  plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 600, create.dir = T
+)
+
+pdf(file.path("../output/4 - Figures and Analysis/figures/Figure_4_thermogenesis_all_covars_dotplot.pdf"), width = 20, height = 15)
+# Print plot to PDF
+print(g)
+# Close the PDF device
+dev.off()
 ```
 
 
@@ -563,14 +586,15 @@ for (covar in covars) {
   # Create plot ordered by NES
   g <- ggplot(plot.data, aes(Tissue, Description)) +
     geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
-    # Add asterisks for p.adjust < 0.05
-    geom_text(
-      data = plot.data %>% filter(p.adjust < 0.05),
-      aes(label = "*"),
-      color = "black",
-      size = 7,
-      vjust = 0.2
-    ) +
+      # Add asterisks for p.adjust < 0.05
+  geom_text(
+    data = plot.data %>% filter(p.adjust < 0.05),
+    aes(label = "*"),
+    color = "black",
+    size = 6,
+    vjust = 0.5,
+    hjust = 1.75
+  ) + # Adjust the position of the asterisk
     scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
     scale_y_discrete(limits = rev(unique(plot.data$Description))) +
@@ -594,7 +618,15 @@ for (covar in covars) {
     plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
   )
 
-
+  # Save plot as PNG with date prefix
+  ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_top_", n_top, "_pathways.png")),
+    plot = g, device = "png", width = w, height = h, units = "in", dpi = 600, create.dir = T
+  )
+  
+  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_top_", n_top, "_pathways.pdf")), width = w, height = h)
+  print(g)
+  dev.off()
 
   g_flipped <- g + coord_flip() + theme(axis.text.x = element_text(angle = 90))
 
@@ -757,6 +789,12 @@ print(g)
 # Save plot as PNG with date prefix
 ggsave(
   filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
+  plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
+)
+
+# Save plot as PNG with date prefix
+ggsave(
+  filename = file.path("../output/temp/chunk16_Pathway_corrs.png"),
   plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
 )
 
