@@ -12,6 +12,28 @@ library(DESeq2)
 library(openxlsx)
 library(ggpubr)
 library(tidyverse)
+
+#Solve conflicts
+conflicted::conflict_prefer("rename", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+# Formatting the metadata
+meta <- read.xlsx("../data/Metadata_for_correlation.xlsx")
+
+meta <- meta %>% separate_wider_delim(cols = Sample, delim = " ", names = c("Tissue", "Donor_ID"))
+meta <- meta %>%
+  rename(
+    "Serum_Free_T3" = "Free.T3",
+    "Serum_Free_T4" = "Free.T4",
+    "Serum_TSH" = "TSH",
+    "log10_Serum_TSH" = "log[TSH]"
+  ) %>%
+  mutate("log10_Serum_TSH" = log10(Serum_TSH))
+
+
+
+names(meta) <- gsub("[ /]", "_", names(meta))
+
 ```
 
 #Running updated DESEq2
@@ -196,18 +218,6 @@ pheatmap(
 )
 dev.off() # Close the PDF device
 
-# Save as a vector PDF
-png(paste0("./figures/Paper_figures/Supplementary_Figure_HeatMap/DeepVsSQ_top", n, "_DGE_heatmap.png"), width = 6, height = 8, units = "in", res = 300) # Adjust size in inches
-pheatmap(
-  scaled_heatmap_matrix,
-  cluster_rows = TRUE, # Remove row clustering (no dendrogram for rows)
-  cluster_cols = FALSE, # Remove column clustering (no dendrogram for columns)
-  show_rownames = TRUE, # Hide row names
-  fontsize_row = 6 / (n / 50), # Reduce row name font size (adjust value as needed)
-  color = colorRampPalette(c("blue", "white", "red"))(50),
-  main = paste("Top", n, "DGE - Deep vs Subcutaneous")
-)
-dev.off() # Close the PDF device
 
 pheatmap(
   scaled_heatmap_matrix,
@@ -615,6 +625,8 @@ final_plot <- wrap_plots(tagged_ordered_plots, ncol = max_cols)
 ggsave("./figures/Paper_figures/Figure_3/DESeq_Panel.png", plot = final_plot, width = 4, height = 8, scale = 1.7, units = "in", dpi = 600, bg = "whitesmoke")
 
 ggsave("../output/2 - Figures and Analysis/figures/Figure_2_deseq_genes.png", plot = final_plot, width = 4, height = 8, scale = 1.7, units = "in", dpi = 600, bg = "white")
+
+ggsave("../output/2 - Figures and Analysis/figures/Figure_2_deseq_genes.tiff", plot = final_plot, width = 4, height = 8, scale = 1.7, units = "in", dpi = 600, bg = "white")
 
 pdf("../output/2 - Figures and Analysis/figures/Figure_2_deseq_genes.pdf", width = 4*1.7, height = 8*1.7)
 final_plot
