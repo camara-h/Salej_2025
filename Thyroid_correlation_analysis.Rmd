@@ -12,6 +12,9 @@ library(ggplot2)
 library(ggpubr)
 library(patchwork)
 
+#Solve conflicts
+conflicted::conflict_prefer("rename", "dplyr")
+
 # Formatting the metadata
 meta <- read.xlsx("../data/Metadata_for_correlation.xlsx")
 
