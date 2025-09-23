@@ -53,17 +53,12 @@ sentence_case <- function(text) {
   # Convert the first letter to uppercase and the rest to lowercase
   paste0(toupper(substr(text, 1, 1)), tolower(substr(text, 2, nchar(text))))
 }
+
+# Define date prefix
+date_prefix <- format(Sys.Date(), "%Y-%m-%d")
 ```
 
-# Paper figures
-The analysis above was useful to summarize data.
-After discussion we decided to use the adjusted analysis as our main reference point. Thus, plots will be centered towards that.
-We can check consistency in the other adjustments.
-
-To create the paper figures, I plan to get the top 10 Positive and negative associated pathways and plot them as a DotPlot, with NES on x-axis, Cluster in the Y-axis, color as p.value
-
 # --- Reading BMI adjusted
-
 ```{r}
 path_list <- list()
 # Define a function to format text (ensure this is defined elsewhere in your code)
@@ -95,14 +90,13 @@ names(sheets) <- sheet_names
 BMI_temp <- bind_rows(sheets)
 path_list[["BMI_temp"]] <- BMI_temp
 rm(BMI_temp)
-
 ```
 
 ```{r}
 # Load only the data form the covariate corrected files
 covar_data <- path_list[["BMI_temp"]]
 
-# Replace the pahtway name that is too big
+# Replace the pathway name that is too big
 covar_data <-
   covar_data %>% mutate(Description = case_when(
     Description == "RESPIRATORY_ELECTRON_TRANSPORT_ATP_SYNTHESIS_BY_CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS_" ~ "CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS",
@@ -111,113 +105,6 @@ covar_data <-
 ```
 
 ```{r}
-grep("creatine", covar_data$Description, ignore.case = T, value = T)
-```
-
-Plot the data - Top 20 genes
-```{r}
-library(ggplot2)
-library(dplyr)
-library(stringr)
-
-# Define date prefix
-date_prefix <- format(Sys.Date(), "%Y-%m-%d")
-
-# Define number of top genes
-n_top <- 20
-
-# Get unique covariates and exclude specific ones
-covars <- unique(covar_data$Cluster)
-covars <- covars[!grepl("Deep_and_SC", covars)] # Remove the Deep and SC analysis
-
-# Create output directory if it does not exist
-output_dir <- paste0("./figures/Paper_figures/DotPlot/top_", n_top)
-dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-
-# Create PDF to save plots with date prefix
-pdf(file.path("./figures/", paste0(date_prefix, "_GSEA_summary_top_padj.pdf")), width = 12, height = 6)
-
-# Loop through each covariate and generate plots
-for (covar in covars) {
-  plot.data <- covar_data %>% filter(Cluster == covar)
-
-  # Order with positives first
-  pos_nes <- plot.data %>%
-    filter(NES > 0) %>%
-    arrange(p.adjust) %>%
-    slice_head(n = n_top)
-  neg_nes <- plot.data %>%
-    filter(NES < 0) %>%
-    arrange(desc(p.adjust)) %>%
-    slice_tail(n = n_top)
-  plot.data <- bind_rows(pos_nes, neg_nes)
-
-  # Calculate min and max for -log10(p.adjust)
-  min_neg_log_padj <- min(-log10(plot.data$p.adjust))
-  max_neg_log_padj <- max(-log10(plot.data$p.adjust))
-
-  # Create plot
-  g <- ggplot(plot.data, aes(NES, Description)) +
-    geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
-    scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
-    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-    scale_y_discrete(limits = rev(unique(plot.data$Description))) +
-    theme(axis.text.x = element_text(angle = 0, hjust = 1)) +
-    labs(title = covar)
-
-  # Print plot to PDF
-  print(g)
-
-  # Save plot as PNG with date prefix
-  # ggsave(
-  #   filename = file.path(output_dir, paste0(date_prefix, "_", covar, "_GSEA_summary_top_padj.png")),
-  #   plot = g, device = "png", width = 12, height = 6, units = "in", dpi = 300
-  # )
-}
-
-# Close the PDF device
-dev.off()
-```
-### DotPlots - SC and Deep side by side
-
-```{r}
-# Get the pathways from the file to look more closely, potentially using LLM to filter the thermogenesis related paths
-reactome_descriptions <- unique(covar_data$Description)
-write.csv(reactome_descriptions, file = "./figures/Paper_figures/Reactome_description_list.csv", row.names = F)
-
-# Assign thermogenic pathways to a vector
-thermo_paths <- c(
-  # These are bioenergetics/thermogenesis-related pathways
-  "CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS", "THE_CITRIC_ACID_TCA_CYCLE_AND_RESPIRATORY_ELECTRON_TRANSPORT", "RESPIRATORY_ELECTRON_TRANSPORT_ATP_SYNTHESIS_BY_CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS", "RESPIRATORY_ELECTRON_TRANSPORT", "FATTY_ACID_METABOLISM", "PYRUVATE_METABOLISM_AND_CITRIC_ACID_TCA_CYCLE", "INTEGRATION_OF_ENERGY_METABOLISM", "REGULATION_OF_LIPID_METABOLISM_BY_PPARALPHA", "KETONE_BODY_METABOLISM", "REGULATION_OF_GLYCOLYSIS_BY_FRUCTOSE_2_6_BISPHOSPHATE_METABOLISM", "INTRACELLULAR_METABOLISM_OF_FATTY_ACIDS_REGULATES_INSULIN_SECRETION",
-
-  # These are mitochondrial related pathways
-  "MITOCHONDRIAL_TRANSLATION", "MITOCHONDRIAL_TRANSLATION_ELONGATION", "MITOCHONDRIAL_TRANSLATION_INITIATION", "MITOCHONDRIAL_TRANSLATION_TERMINATION", "MITOCHONDRIAL_PROTEIN_IMPORT", "MITOCHONDRIAL_BIOGENESIS", "MITOCHONDRIAL_FATTY_ACID_BETA_OXIDATION", "BIOLOGICAL_OXIDATIONS", "MITOCHONDRIAL_FATTY_ACID_BETA_OXIDATION_OF_UNSATURATED_FATTY_ACIDS", "MITOCHONDRIAL_UNCOUPLING",
-
-  # This is creatine metabolism related
-  "CREATINE_METABOLISM"
-)
-```
-
-```{r}
-# Load only the data form the covariate corrected files
-covar_data <- path_list[["BMI_temp"]]
-
-# Replace the pahtway name that is too big
-covar_data <-
-  covar_data %>% mutate(Description = case_when(
-    Description == "RESPIRATORY_ELECTRON_TRANSPORT_ATP_SYNTHESIS_BY_CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS_" ~ "CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS",
-    TRUE ~ Description
-  ))
-
-names(covar_data)
-```
-
-
-Plot the data
-```{r}
-# Define date prefix
-date_prefix <- format(Sys.Date(), "%Y-%m-%d")
-
 # Format the data to have the covariate independent of tissue location
 covar_data <- covar_data %>%
   mutate( # Extract text before the dot
@@ -235,7 +122,6 @@ covar_data <- covar_data %>%
   ) %>%
   filter(Tissue != "Deep_and_SC")
 
-
 # Create a data frame with all possible combinations of Description, Tissue and Covariate
 all_combinations <- expand.grid(
   Description = unique(covar_data$Description),
@@ -252,9 +138,6 @@ f.covar_data <- all_combinations %>%
     p.adjust = ifelse(is.na(p.adjust), 1, p.adjust)
   )
 
-unique(f.covar_data$Covariate)
-
-
 # Get unique covariates and exclude the ones combining DEEP and SC for the correlation
 covars <- f.covar_data %>%
   filter(Tissue != "Deep_and_SC") %>%
@@ -262,133 +145,23 @@ covars <- f.covar_data %>%
   unique()
 ```
 
-#Rename the covariates data
+# Plot Thermogenic Paths in All Covariates Side-by-side - Figure 4
 ```{r}
-# f.covar_data = f.covar_data %>% mutate(Covariate = case_when(
-#                                                     Covariate == "FreeT4" ~ "Free T4",
-#                                                     Covariate == "T4_per_mcg_protein" ~ "T4/μg of protein",
-#                                                     Covariate == "T3_per_mcg_protein" ~ "T3/μg of protein",
-#                                                     Covariate == "T4_per_mg_tissue" ~ "T4/mg of tissue",
-#                                                     Covariate == "T3_per_mg_tissue" ~ "T3/mg of tissue",
-#                                                     Covariate == "FreeT3" ~ "Free T3",
-#                                                     Covariate == "HYPERvsHYPO" ~ "Hyperthyroidism",
-#                                                     Covariate == "TSH" ~ "TSH"))
+# Assign thermogenic pathways to a vector
+thermo_paths <- c(
+  # These are bioenergetics/thermogenesis-related pathways
+  "CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS", "THE_CITRIC_ACID_TCA_CYCLE_AND_RESPIRATORY_ELECTRON_TRANSPORT", "RESPIRATORY_ELECTRON_TRANSPORT_ATP_SYNTHESIS_BY_CHEMIOSMOTIC_COUPLING_AND_HEAT_PRODUCTION_BY_UNCOUPLING_PROTEINS", "RESPIRATORY_ELECTRON_TRANSPORT", "FATTY_ACID_METABOLISM", "PYRUVATE_METABOLISM_AND_CITRIC_ACID_TCA_CYCLE", "INTEGRATION_OF_ENERGY_METABOLISM", "REGULATION_OF_LIPID_METABOLISM_BY_PPARALPHA", "KETONE_BODY_METABOLISM", "REGULATION_OF_GLYCOLYSIS_BY_FRUCTOSE_2_6_BISPHOSPHATE_METABOLISM", "INTRACELLULAR_METABOLISM_OF_FATTY_ACIDS_REGULATES_INSULIN_SECRETION",
+
+  # These are mitochondrial related pathways
+  "MITOCHONDRIAL_TRANSLATION", "MITOCHONDRIAL_TRANSLATION_ELONGATION", "MITOCHONDRIAL_TRANSLATION_INITIATION", "MITOCHONDRIAL_TRANSLATION_TERMINATION", "MITOCHONDRIAL_PROTEIN_IMPORT", "MITOCHONDRIAL_BIOGENESIS", "MITOCHONDRIAL_FATTY_ACID_BETA_OXIDATION", "BIOLOGICAL_OXIDATIONS", "MITOCHONDRIAL_FATTY_ACID_BETA_OXIDATION_OF_UNSATURATED_FATTY_ACIDS", "MITOCHONDRIAL_UNCOUPLING",
+
+  # This is creatine metabolism related
+  "CREATINE_METABOLISM"
+)
 ```
 
-
-#### Plotting thermogenic pathways==================================
-
-
-
 ```{r}
-# Define widht and heigth of plots
-w <- 12
-h <- 5
-
-# Create output directory if it does not exist
-output_dir <- paste0("./figures/Paper_figures/DotPlot/DEEP_SC_Thermogenic_pathways")
-dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-
-#### Plotting thermogenic pathways==================================
-# Create PDF to save plots with date prefix
-# pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_thermo.pdf")), width = 12, height = 6)
-
-
-# Loop through each covariate and generate plots
-for (covar in covars) {
-  plot.data <- f.covar_data %>% filter(
-    Covariate == covar,
-    Description %in% thermo_paths
-  ) # Filter for the thermogenic pathways
-
-  # Order with positives first
-  pos_nes <- plot.data %>%
-    filter(NES >= 0) %>%
-    arrange(p.adjust)
-  neg_nes <- plot.data %>%
-    filter(NES < 0) %>%
-    arrange(desc(p.adjust))
-
-  plot.data <- bind_rows(pos_nes, neg_nes)
-
-  # Calculate min and max for -log10(p.adjust)
-  min_neg_log_padj <- min(-log10(plot.data$p.adjust))
-  max_neg_log_padj <- max(-log10(plot.data$p.adjust))
-
-  # Create plot ordered by NES
-  g <- ggplot(plot.data, aes(Tissue, Description)) +
-    geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
-      # Add asterisks for p.adjust < 0.05
-  geom_text(
-    data = plot.data %>% filter(p.adjust < 0.05),
-    aes(label = "*"),
-    color = "black",
-    size = 6,
-    vjust = 0.5,
-    hjust = 1.75
-  ) + # Adjust the position of the asterisk
-    scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
-    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-    scale_y_discrete(limits = rev(unique(plot.data$Description))) +
-    theme(
-      axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
-      axis.text.y = element_text(size = 14), # Increase y-axis text size
-      axis.title.x = element_blank(), # Remove x-axis title
-      axis.title.y = element_blank(), # Remove y-axis title
-      plot.title = element_text(size = 16, face = "bold"), # Increase title size and make it bold
-      legend.text = element_text(size = 12), # Increase legend text size
-      legend.title = element_text(size = 14) # Increase legend title size
-    ) +
-    labs(title = paste0(covar, "\n", "Thermogenesis-related pathways"))
-
-  # Print plot to PDF
-  print(g)
-
-  # Save plot as PNG with date prefix
-  ggsave(
-    filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
-    plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
-  )
-  
-  ggsave(
-    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_thermogenic_pathways.png")),
-    plot = g, device = "png", width = w, height = h, units = "in", dpi = 600, create.dir = T
-  )
-  
-  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_thermogenic_pathways.pdf")), width = w, height = h)
-
-
-  # Create plot ordered alphabetically
-  g <- ggplot(plot.data, aes(Tissue, Description)) +
-    geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
-    scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
-    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-    theme(
-      axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
-      axis.text.y = element_text(size = 14), # Increase y-axis text size
-      axis.title.x = element_blank(), # Remove x-axis title
-      axis.title.y = element_blank(), # Remove y-axis title
-      plot.title = element_text(size = 16, face = "bold"), # Increase title size and make it bold
-      legend.text = element_text(size = 12), # Increase legend text size
-      legend.title = element_text(size = 14) # Increase legend title size
-    ) +
-    labs(title = paste0(covar, "\n", "Thermogenesis-related pathways"))
-
-  # Print plot to PDF
-  print(g)
-  # Save plot as PNG with date prefix
-  # ggsave(
-  #   filename = file.path(output_dir, "Alphabetical_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
-  #   plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
-  # )
-}
-
-# Close the PDF device
-# dev.off()
-```
-#### Plot all covariates side by side
-```{r}
-# Define widht and heigth of plots
+# Define width and height of plots
 w <- 12
 h <- 5
 
@@ -396,14 +169,8 @@ h <- 5
 output_dir <- paste0("./figures/Paper_figures/DotPlot/DEEP_SC_Thermogenic_pathways/ALL")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-#### Plotting thermogenic pathways==================================
-# # Create PDF to save plots with date prefix
-# pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_thermo.pdf")), width = 12, height = 6)
-
-
-# Loop through each covariate and generate plots
-plot.data <- f.covar_data %>% filter(Description %in% c(thermo_paths)) # Filter for the thermogenic pathways
-# head(plot.data)
+# Filter for the thermogenic pathways
+plot.data <- f.covar_data %>% filter(Description %in% c(thermo_paths)) 
 
 plot.data <- plot.data %>%
   filter(!Covariate %in% c("T4_per_mcg_protein", "T3_per_mcg_protein")) %>%
@@ -432,62 +199,12 @@ plot.data <- bind_rows(pos_nes, neg_nes)
 min_neg_log_padj <- min(-log10(plot.data$p.adjust))
 max_neg_log_padj <- max(-log10(plot.data$p.adjust))
 
-# Create plot ordered by NES
-g <- ggplot(plot.data, aes(Covariate, Description)) +
-  geom_count(aes(size = -log10(p.adjust), fill = NES, color = Tissue), shape = 21, stroke = 0.5) +
-  scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  scale_y_discrete(limits = rev(unique(plot.data$Description))) +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
-    axis.text.y = element_text(size = 14), # Increase y-axis text size
-    axis.title.x = element_blank(), # Remove x-axis title
-    axis.title.y = element_blank(), # Remove y-axis title
-    plot.title = element_text(size = 16, face = "bold", hjust = 0.5), # Increase title size and make it bold
-    legend.text = element_text(size = 12), # Increase legend text size
-    legend.title = element_text(size = 14) # Increase legend title size
-  ) +
-  labs(title = paste0("Thermogenesis-related pathways"))
 
-
-# GPT code
-# Create plot ordered by NES
-g <- ggplot(plot.data, aes(Tissue, Description)) +
-  geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, stroke = 0.5) +
-  facet_grid(. ~ Covariate, scales = "free_x", space = "free_x") + # Facet by Tissue with separate x-axis
-  # Add asterisks for p.adjust < 0.05
-  geom_text(
-    data = plot.data %>% filter(p.adjust < 0.05),
-    aes(label = "*"),
-    color = "black",
-    size = 6,
-    vjust = 0
-  ) + # Adjust the position of the asterisk
-  scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  scale_y_discrete(limits = rev(unique(plot.data$Description))) +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
-    axis.text.y = element_text(size = 14), # Increase y-axis text size
-    axis.title.x = element_blank(), # Remove x-axis title
-    axis.title.y = element_blank(), # Remove y-axis title
-    plot.title = element_text(size = 16, face = "bold"), # Increase title size and make it bold
-    legend.text = element_text(size = 12), # Increase legend text size
-    legend.title = element_text(size = 14), # Increase legend title size
-    strip.text.x = element_text(size = 12, face = "bold") # Style for facet labels (Tissue)
-  ) +
-  labs(title = paste0("Thermogenesis-related pathways"))
-
-
-
-############################
-# Order Covariate
-desired_order <- c("Serum TSH", "Serum Free T4", "Serum Free T3", "T4/mg of tissue", "T3/mg of tissue", "Hyperthyroidism vs Hypothyroidism") # Replace with your actual facet levels
+# Order Covariate and format text
+desired_order <- c("Serum TSH", "Serum Free T4", "Serum Free T3", "T4/mg of tissue", "T3/mg of tissue", "Hyperthyroidism vs Hypothyroidism")
+plot.data <- plot.data %>% filter(Covariate %in% desired_order) #Keep only original correlations
 plot.data$Covariate <- factor(plot.data$Covariate, levels = desired_order)
-
 plot.data$Description <- gsub("_", " ", plot.data$Description)
-
-plot.data <- plot_data %>% filter(Covariate %in% desired_order)
 
 # Create plot ordered by NES
 g <- ggplot(plot.data, aes(Tissue, Description)) +
@@ -495,15 +212,14 @@ g <- ggplot(plot.data, aes(Tissue, Description)) +
   facet_grid(. ~ Covariate,
     scales = "free_x", space = "free_x",
     labeller = labeller(Covariate = function(x) str_wrap(x, width = 15))
-  ) + # Wrap facet labels
-  # Add asterisks for p.adjust < 0.05
+  ) + 
   geom_text(
     data = plot.data %>% filter(p.adjust < 0.05),
     aes(label = "*"),
     color = "black",
     size = 6,
     vjust = 0
-  ) + # Adjust the position of the asterisk
+  ) + 
   scale_y_discrete(labels = function(x) str_wrap(x, width = 10)) + # Wrap y-axis labels
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
   scale_y_discrete(limits = rev(unique(plot.data$Description))) +
@@ -519,19 +235,17 @@ g <- ggplot(plot.data, aes(Tissue, Description)) +
   ) +
   labs(title = "Thermogenesis-related pathways")
 
-# Print plot to PDF
-print(g)
-
-# Save plot as PNG with date prefix
-ggsave(
-  filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
-  plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
-)
 
 # Save plot as PNG with date prefix
 ggsave(
   filename = file.path("../output/4 - Figures and Analysis/figures/Figure_4_thermogenesis_all_covars_dotplot.png"),
   plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 600, create.dir = T
+)
+
+# Save plot as TIFF with date prefix
+ggsave(
+  filename = file.path("../output/4 - Figures and Analysis/figures/Figure_4_thermogenesis_all_covars_dotplot.tiff"),
+  plot = g, device = "tiff", width = 20, height = 15, units = "in", dpi = 600, create.dir = T
 )
 
 pdf(file.path("../output/4 - Figures and Analysis/figures/Figure_4_thermogenesis_all_covars_dotplot.pdf"), width = 20, height = 15)
@@ -542,9 +256,16 @@ dev.off()
 ```
 
 
-#### Plotting the top N genes pathways==================================
+# Plotting the top 5 pathways - Figures 5A and 6A
 ```{r}
-# Define widht and heigth of plots
+# Create vector to fave the figures
+covars <- unique(f.covar_data$Covariate)
+fig_number <-  c("6", "5",rep("N", length(covars) -2))
+fig_number <- setNames(fig_number, c("FreeT3", "FreeT4", setdiff(covars, c("FreeT3", "FreeT4"))))
+```
+
+```{r}
+# Define width and height of plots
 w <- 15
 h <- 5
 
@@ -554,11 +275,6 @@ n_top <- 5
 # Create output directory if it does not exist
 output_dir <- paste0("./figures/Paper_figures/DotPlot/top_", n_top)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-
-#### Plotting thermogenic pathways==================================
-# Create PDF to save plots with date prefix
-pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_top", n_top, ".pdf")), width = 12, height = 6)
-
 
 # Loop through each covariate and generate plots
 for (covar in covars) {
@@ -609,243 +325,98 @@ for (covar in covars) {
     ) +
     labs(title = paste0(covar, "\n", "Top ", n_top, " correlated pathways"))
 
-  # Print plot to PDF
-  print(g)
-
   # Save plot as PNG with date prefix
   ggsave(
-    filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
-    plot = g, device = "png", width = w, height = h, units = "in", dpi = 300, create.dir = T
-  )
-
-  # Save plot as PNG with date prefix
-  ggsave(
-    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_top_", n_top, "_pathways.png")),
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_", "Figure_", fig_number[covar], "A_",  covar, "_top_", n_top, "_pathways.png")),
     plot = g, device = "png", width = w, height = h, units = "in", dpi = 600, create.dir = T
   )
   
-  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0("Figure_N_", date_prefix, "_", covar, "_top_", n_top, "_pathways.pdf")), width = w, height = h)
+    # Save plot as TIFF with date prefix
+  ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_","Figure_", fig_number[covar], "A_",  covar, "_top_", n_top, "_pathways.tiff")),
+    plot = g, device = "tiff", width = w, height = h, units = "in", dpi = 600, create.dir = T
+  )
+  # Save PDF
+  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_","Figure_", fig_number[covar], "A_",  covar, "_top_", n_top, "_pathways.pdf")), width = w, height = h)
   print(g)
   dev.off()
-
-  g_flipped <- g + coord_flip() + theme(axis.text.x = element_text(angle = 90))
-
-  # Save plot as PNG with date prefix
-  ggsave(
-    filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths_FLIPPED.png")),
-    plot = g_flipped, device = "png", width = h, height = w, units = "in", dpi = 300, create.dir = T
-  )
 }
-
-# Close the PDF device
-dev.off()
-```
-```{r}
-covar_data %>% filter(Description == "CREATINE_METABOLISM")
 ```
 
-#### Plot all covariates side by side
+# Plot Thermogenic Pathways - Figure 5B and 6B
 ```{r}
-# Define widht and heigth of plots
+# Define width and height of plots
 w <- 12
 h <- 5
 
 # Create output directory if it does not exist
-output_dir <- paste0("./figures/Paper_figures/DotPlot/DEEP_SC_Thermogenic_pathways/ALL")
+output_dir <- paste0("./figures/Paper_figures/DotPlot/DEEP_SC_Thermogenic_pathways")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-#### Plotting thermogenic pathways==================================
-# # Create PDF to save plots with date prefix
-# pdf(file.path(output_dir, paste0(date_prefix, "_GSEA_summary_thermo.pdf")), width = 12, height = 6)
-
-
 # Loop through each covariate and generate plots
-plot.data <- f.covar_data %>% filter(Description %in% thermo_paths) # Filter for the thermogenic pathways
-# head(plot.data)
+for (covar in covars) {
+  plot.data <- f.covar_data %>% filter(
+    Covariate == covar,
+    Description %in% thermo_paths
+  ) # Filter for the thermogenic pathways
 
-plot.data <- plot.data %>%
-  filter(!Covariate %in% c("T4_per_mcg_protein", "T3_per_mcg_protein")) %>%
-  mutate(Covariate = case_when(
-    Covariate == "FreeT4" ~ "Serum Free T4",
-    Covariate == "T4_per_mcg_protein" ~ "T4/μg of protein",
-    Covariate == "T3_per_mcg_protein" ~ "T3/μg of protein",
-    Covariate == "T4_per_mg_tissue" ~ "T4/mg of tissue",
-    Covariate == "T3_per_mg_tissue" ~ "T3/mg of tissue",
-    Covariate == "FreeT3" ~ "Serum Free T3",
-    Covariate == "HYPERvsHYPO" ~ "Hyperthyroidism vs Hypothyroidism",
-    Covariate == "TSH" ~ "Serum TSH"
-  ))
+  # Order with positives first
+  pos_nes <- plot.data %>%
+    filter(NES >= 0) %>%
+    arrange(p.adjust)
+  neg_nes <- plot.data %>%
+    filter(NES < 0) %>%
+    arrange(desc(p.adjust))
 
-# Order with positives first
-pos_nes <- plot.data %>%
-  filter(NES >= 0) %>%
-  arrange(p.adjust)
-neg_nes <- plot.data %>%
-  filter(NES < 0) %>%
-  arrange(desc(p.adjust))
+  plot.data <- bind_rows(pos_nes, neg_nes)
 
-plot.data <- bind_rows(pos_nes, neg_nes)
+  # Calculate min and max for -log10(p.adjust)
+  min_neg_log_padj <- min(-log10(plot.data$p.adjust))
+  max_neg_log_padj <- max(-log10(plot.data$p.adjust))
 
-# Calculate min and max for -log10(p.adjust)
-min_neg_log_padj <- min(-log10(plot.data$p.adjust))
-max_neg_log_padj <- max(-log10(plot.data$p.adjust))
-
-############################
-# Order Covariate
-desired_order <- c("Serum TSH", "Serum Free T4", "Serum Free T3", "T4/mg of tissue", "T3/mg of tissue", "Hyperthyroidism vs Hypothyroidism") # Replace with your actual facet levels
-plot.data$Covariate <- factor(plot.data$Covariate, levels = desired_order)
-
-plot.data$Description <- gsub("_", " ", plot.data$Description)
-```
-
-# --- Format plotting information
-```{r}
-threshold <- 0.05
-# --- Filter for genes of interest
-plot_data <- plot.data %>%
-  mutate(
-    significance = p.adjust < threshold,
-    stroke_width = ifelse(significance, 0.5, 0.1),
-    significance_label = ifelse(significance, paste0("FDR < ", threshold), "Not Significant"),
-    significance_color = ifelse(significance_label == "Not Significant", "grey75", "black"),
-    rounded_NES = round(NES, 2) # round to 2 decimal places
-
-    ) 
-
-# --- Determine nrows for size adjustment when saving
-plot_nrow <- plot_data %>%
-  distinct(Description) %>%
-  nrow()
-
-# --- Adjust stroke color
-stroke_color <- plot_data %>%
-  distinct(significance_label, significance_color) %>%
-  deframe() # turns into a named vector (names are ensembl_ids)
-```
-
-```{r}
-# Create plot ordered by NES
-g <- ggplot(plot_data, aes(Tissue, Description)) +
-  geom_point(
-    aes(fill = NES, stroke = stroke_width, colour = significance_label),
-    shape = 21, size = 3.5
-  ) +
-  geom_text(
-    aes(label = rounded_NES),
-    size = 3 / 2.81,
-    color = "black",
-    fontface = "bold"
-  ) +
-  scale_fill_gradient2(low = "royalblue", mid = "white", high = "firebrick2", midpoint = 0) +
-  scale_color_manual(
-    values = stroke_color, # Only include significant one
-    name = "Significance"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-    strip.background = element_blank()
-  ) +
-  theme(
-    legend.position = "top",
-    legend.key.size = unit(2, "mm"),
-    legend.text = element_text(size = 4),
-    legend.title = element_text(size = 5),
-    axis.line = element_line(size = 0.3) # smaller = thinner lines
-  ) 
-g
-g <- g + facet_wrap(vars(Covariate), ncol = length(unique(plot_data$Description)))
-g +
-  geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, stroke = 0.5) +
-  facet_grid(. ~ Covariate,
-    scales = "free_x", space = "free_x",
-    labeller = labeller(Covariate = function(x) str_wrap(x, width = 15))
-  ) + # Wrap facet labels
-  # Add asterisks for p.adjust < 0.05
+  # Create plot ordered by NES
+  g <- ggplot(plot.data, aes(Tissue, Description)) +
+    geom_count(aes(size = -log10(p.adjust), fill = NES), shape = 21, color = "black", stroke = 0.5) +
+      # Add asterisks for p.adjust < 0.05
   geom_text(
     data = plot.data %>% filter(p.adjust < 0.05),
     aes(label = "*"),
     color = "black",
     size = 6,
-    vjust = 0
+    vjust = 0.5,
+    hjust = 1.75
   ) + # Adjust the position of the asterisk
-  scale_y_discrete(labels = function(x) str_wrap(x, width = 10)) + # Wrap y-axis labels
-  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  scale_y_discrete(limits = rev(unique(plot.data$Description))) +
-  theme(
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
-    axis.text.y = element_text(size = 14), # Increase y-axis text size
-    axis.title.x = element_blank(), # Remove x-axis title
-    axis.title.y = element_blank(), # Remove y-axis title
-    plot.title = element_text(size = 20, face = "bold", hjust = 0.5), # Center and increase title size
-    legend.text = element_text(size = 12), # Increase legend text size
-    legend.title = element_text(size = 14), # Increase legend title size
-    strip.text.x = element_text(size = 12, face = "bold", margin = margin(b = 10, t = 10))   ) +# Style for facet labels with spacing
-
-  labs(title = "Thermogenesis-related pathways")
-
-# Print plot to PDF
-print(g)
-
-# Save plot as PNG with date prefix
-ggsave(
-  filename = file.path(output_dir, "NES_ordered_Y", paste0(date_prefix, "_", covar, "_GSEA_thermogenic_paths.png")),
-  plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
-)
-
-# Save plot as PNG with date prefix
-ggsave(
-  filename = file.path("../output/temp/chunk16_Pathway_corrs.png"),
-  plot = g, device = "png", width = 20, height = 15, units = "in", dpi = 300, create.dir = T
-)
-
-# # Close the PDF device
-# dev.off()
-```
-
-# --- Plot
-```{r}
-p <- ggplot(plot_data, aes(x = var_labels, y = ensembl_id)) +
-  geom_point(
-    aes(fill = slope, stroke = stroke_width, colour = significance_label),
-    shape = 21, size = 3.5
-  ) +
-  geom_text(
-    aes(label = rounded_slope),
-    size = 3 / 2.81,
-    color = "black",
-    fontface = "bold"
-  ) +
-  scale_fill_gradient2(low = "royalblue", mid = "white", high = "firebrick2", midpoint = 0) +
-  scale_color_manual(
-    values = stroke_color, # Only include significant one
-    name = "Significance"
-  ) +
-  scale_y_discrete(labels = y_axis_text) +
-  theme_pubr(
-    base_size = 6,
-    base_family = "Arial"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-    strip.background = element_rect(fill = "white", color = "white")
-  ) +
-  theme(
-    legend.position = "top",
-    legend.key.size = unit(2, "mm"),
-    legend.text = element_text(size = 4),
-    legend.title = element_text(size = 5),
-    axis.line = element_line(size = 0.3) # smaller = thinner lines
-  ) +
-  labs(
-    y = NULL,
-    x = NULL
+    scale_y_discrete(labels = function(x) wrap_text(x, width = 10)) +
+    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+    scale_y_discrete(limits = rev(unique(plot.data$Description))) +
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5, size = 14), # Increase x-axis text size
+      axis.text.y = element_text(size = 14), # Increase y-axis text size
+      axis.title.x = element_blank(), # Remove x-axis title
+      axis.title.y = element_blank(), # Remove y-axis title
+      plot.title = element_text(size = 16, face = "bold"), # Increase title size and make it bold
+      legend.text = element_text(size = 12), # Increase legend text size
+      legend.title = element_text(size = 14) # Increase legend title size
+    ) +
+    labs(title = paste0(covar, "\n", "Thermogenesis-related pathways"))
+  
+  ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_","Figure_", fig_number[covar], "B_",  covar, "_thermogenic_pathways.png")),
+    plot = g, device = "png", width = w, height = h, units = "in", dpi = 600, create.dir = T
   )
+  
+    ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_","Figure_", fig_number[covar], "B_",  covar, "_thermogenic_pathways.tiff")),
+    plot = g, device = "tiff", width = w, height = h, units = "in", dpi = 600, create.dir = T
+  )
+  
+  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_","Figure_", fig_number[covar], "B_",  covar, "_thermogenic_pathways.pdf")), width = w, height = h)
+  # Print plot to PDF
+  print(g)
 
-p <- p + facet_wrap(vars(tissue))
-p
-# Save plot
-scale <- 95
-ggsave(paste0("../output/4 - Figures and Analysis/figures/Figure_4.png"), create.dir = T, plot = p, device = "png", width = 1 * scale, height = (1 + 0.01 * plot_nrow) * scale, units = "mm", dpi = 600, bg = "white")
+# Close the PDF device
+  dev.off()
+}
 ```
 
 
