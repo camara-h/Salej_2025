@@ -276,6 +276,9 @@ n_top <- 5
 output_dir <- paste0("./figures/Paper_figures/DotPlot/top_", n_top)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
+# Initialize a list to store the plots
+top_5_plots <- list()
+
 # Loop through each covariate and generate plots
 for (covar in covars) {
   plot.data <- f.covar_data %>% filter(Covariate == covar)
@@ -340,6 +343,9 @@ for (covar in covars) {
   pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_","Figure_", fig_number[covar], "A_",  covar, "_top_", n_top, "_pathways.pdf")), width = w, height = h)
   print(g)
   dev.off()
+  
+  # Store the plot
+  top_5_plots[[covar]] <- g
 }
 ```
 
@@ -352,6 +358,10 @@ h <- 5
 # Create output directory if it does not exist
 output_dir <- paste0("./figures/Paper_figures/DotPlot/DEEP_SC_Thermogenic_pathways")
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Initialize a list to store the plots
+thermo_plots <- list()
+
 
 # Loop through each covariate and generate plots
 for (covar in covars) {
@@ -416,7 +426,51 @@ for (covar in covars) {
 
 # Close the PDF device
   dev.off()
+  
+# Store the plot
+  thermo_plots[[covar]] <- g
 }
 ```
 
+# Save figure 5 and figure 6
+```{r}
+# Define width and height of plots
+w <- 15
+h <- 5
+
+# Figure 5 - Free T4 ----
+  
+    figure_5 <- top_5_plots[["FreeT4"]] + thermo_plots[["FreeT4"]] + plot_layout(ncol = 1) + plot_annotation(tag_levels = "A")
+
+
+    ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_Figure_5_FreeT4.tiff")),
+    plot = figure_5, device = "tiff", width = w, height = h*2, units = "in", dpi = 600, create.dir = T
+  )
+  
+  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_Figure_5_FreeT4.pdf")), width = w, height = h*2)
+  # Print plot to PDF
+  print(figure_5)
+
+# Close the PDF device
+  dev.off()
+  
+  
+# Figure 6 - Free T3 ----
+  
+    figure_6 <- top_5_plots[["FreeT3"]] + thermo_plots[["FreeT3"]] + plot_layout(ncol = 1) + plot_annotation(tag_levels = "A")
+
+
+    ggsave(
+    filename = file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_Figure_6_FreeT3.tiff")),
+    plot = figure_6, device = "tiff", width = w, height = h*2, units = "in", dpi = 600, create.dir = T
+  )
+  
+  pdf(file.path("../output/5_6 - Figures and Analysis/figures",  paste0(date_prefix, "_Figure_6_FreeT3.pdf")), width = w, height = h*2)
+  # Print plot to PDF
+  print(figure_6)
+
+# Close the PDF device
+  dev.off()
+```
 
